@@ -1,0 +1,50 @@
+# Secrets — NEVER commit these
+.env
+data/linkedin_session.json
+credentials.json
+
+# Logs and runtime data
+logs/
+data/leads_today.json
+data/seen_profiles.json
+logs/task_def.xml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Internal / Debug Scripts
+SYSTEM_ARCHITECTURE.md
+SYSTEM_DOCS.md
+walkthrough.md
+debug_*.py
+extract_labels.py
+find_connect.py
+test_click.py
+repair_sheet.py
+verify.py
+artifacts/
+
+data/my_profile.json
+data/prompt_instructions.json
+

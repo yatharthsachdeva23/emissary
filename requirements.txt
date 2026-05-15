@@ -1,0 +1,12 @@
+google-genai>=1.0.0
+requests>=2.28.0
+playwright>=1.44.0
+playwright-stealth>=2.0.0
+gspread>=5.12.0
+google-auth>=2.20.0
+google-auth-oauthlib>=1.0.0
+PyMuPDF>=1.22.0
+python-dotenv>=0.21.0
+plyer>=2.1.0
+colorama>=0.4.6
+rich>=13.3.0
