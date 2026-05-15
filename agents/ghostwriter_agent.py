@@ -2,13 +2,14 @@
 Ghostwriter Agent — Emissary
 Bulk-drafts both:
   1. A 280-char connection hook (stored for CRM reference)
-  2. A 5-part DM (sent when they accept the connection)
+  2. A Meta-Flex DM (sent when they accept the connection)
 Uses a single Gemini API call to stay within free-tier daily limits.
 """
 
 import json
 import os
 import re
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -26,33 +27,59 @@ LEADS_PATH = DATA_DIR / "leads_today.json"
 INSTRUCTIONS_PATH = DATA_DIR / "prompt_instructions.json"
 MAX_NOTE_LENGTH = 280
 
-# ── Bulk Prompt — returns both connection hook AND follow-up DM in one call ──
-BULK_PROMPT = """You are an expert SDR writing on behalf of Yatharth Sachdeva, an IT student at DTU (9.29 CGPA).
+# ── Bulk Prompt v2: "Meta-Flex" — the bot reveals itself, 3-paragraph DM ──────
+BULK_PROMPT = """You are the internal drafting engine for "Emissary," a custom Python/Playwright automation system built by Yatharth Sachdeva.
 
-His Profile:
+ABOUT YATHARTH:
 {my_profile_json}
 
-Here are {count} LinkedIn leads:
+Key facts to always reference:
+- B.Tech Information Technology student at Delhi Technological University (DTU), 9.29 CGPA
+- Built AetherNet: a multi-agent security mesh using WASM sandboxes
+- Won the UIDAI national hackathon with AIRS (AI-powered identity resolution system)
+- Built Emissary: the autonomous Python/Playwright agent that is literally sending this message
+- Looking for a 2-month summer SWE/AI/Backend internship
+
+HERE ARE {count} LEADS TO DRAFT FOR:
 {leads_payload}
 
-For EACH lead, generate TWO pieces of content:
+For EACH lead, return TWO pieces of content:
 
-1. drafted_note: A 280-character LinkedIn connection hook. Sound like a fellow engineer/builder, NOT a student begging for a job. Structure: Observation (their specific tech) → Flex (Yatharth's project/achievement) → Soft close. No URLs, no "Hi [Name]", no resume links. Under 280 chars strictly.
+PIECE 1 - drafted_note (LinkedIn Connection Hook):
+A 280-character hook sent WITH the connection request.
+- Sound like a fellow engineer, NOT a student asking for a job.
+- Structure: [Specific observation about their company's tech] -> [Yatharth's most relevant project flex] -> [Soft, confident close]
+- No URLs, no "Hi [Name]", no resume links. STRICTLY under 280 characters.
 
-2. drafted_dm: A 5-sentence follow-up DM to send AFTER they accept the request. Structure:
-   - Sentence 1: Thank them for connecting + mention their company's specific tech.
-   - Sentence 2: "I'm an IT student at DTU (9.29 CGPA)" + drop a heavy technical flex — mention AetherNet (multi-agent security mesh using WASM sandboxes), winning the UIDAI hackathon with AIRS architecture, or scaling Polars-based ML pipelines. Pick the most relevant one for this lead.
-   - Sentence 3: State clearly you are looking for a 2-month summer SWE/AI internship.
-   - Sentence 4: Low-friction CTA — "If you're open to it, I'd love to set up a quick chat to discuss how my architecture experience might align with your roadmap."
-   - Sentence 5 (MANDATORY, EXACT): "Here is my resume: {resume_link}"
-   RULES: Do NOT use 'pleasure', 'honored', 'aspiring', or 'hope'. Confident peer-to-peer tone. Under 90 words total.
+PIECE 2 - drafted_dm (The Meta-Flex Follow-up DM):
+A follow-up message sent AFTER they accept. This DM breaks the fourth wall and reveals it was sent by an autonomous bot.
+
+STRICT 3-PARAGRAPH STRUCTURE — you MUST use \\n\\n to separate each paragraph in the JSON string:
+
+PARAGRAPH 1 — The Hook + The Meta-Flex (2 sentences):
+  Sentence 1: Thank them for connecting and name one specific, technical thing their company is building.
+  Sentence 2: "Full transparency — this message was delivered by an autonomous Python/Playwright agent I built to automate my internship outreach, and it flagged [Company] as a top engineering match."
+
+PARAGRAPH 2 — The Pitch (2 sentences):
+  Sentence 3: "I'm an IT student at DTU (9.29 CGPA) who builds real systems" — pick the most relevant project (AetherNet, AIRS, or Emissary itself) and tie it to what their company does.
+  Sentence 4: State you are looking for a 2-month summer internship to ship production backend/AI code.
+
+PARAGRAPH 3 — The Close (1 sentence, EXACT wording):
+  "If your team has any bandwidth for an intern who can ship, I'd love to chat — here is my resume: {resume_link}"
+
+CRITICAL RULES:
+- You MUST insert \\n\\n between each paragraph inside the JSON string.
+- Tone: transparent, builder-to-builder, confident. NOT desperate, NOT corporate.
+- BANNED WORDS: "pleasure", "honored", "aspiring", "hope", "eager", "delve", "synergy".
+- Total drafted_dm MUST be under 100 words. Punchy. Engineers hate walls of text.
+- Start with "Thanks for connecting, [FirstName]!" — never "Hi [Name]".
 
 Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
 [
   {{
     "name": "Lead Name",
     "drafted_note": "The 280-char connection hook...",
-    "drafted_dm": "The 5-sentence follow-up DM..."
+    "drafted_dm": "Thanks for connecting, [First]! [Company-specific observation]. Full transparency — this message was delivered by an autonomous Python/Playwright agent I built, and it flagged [Company] as a top match.\\n\\nI'm an IT student at DTU (9.29 CGPA) who built [most relevant project — tie it to their stack]. I'm looking for a 2-month summer internship to ship production code.\\n\\nIf your team has any bandwidth for an intern who can ship, I'd love to chat — here is my resume: {resume_link}"
   }}
 ]"""
 
@@ -109,7 +136,6 @@ class GhostwriterAgent:
         )
 
         drafted = []
-        import time
         max_retries = 3
 
         with Progress(SpinnerColumn(), TextColumn("Gemini bulk drafting notes + DMs..."), console=console) as p:
@@ -128,7 +154,7 @@ class GhostwriterAgent:
                         console.print(f"\n[red]❌ Gemini API failed after {max_retries} retries: {e}[/red]")
                         return leads  # Return leads without notes rather than crash
 
-        # Build lookup map: name → {drafted_note, drafted_dm}
+        # Build lookup map: name -> {drafted_note, drafted_dm}
         note_map = {}
         for item in drafted:
             if isinstance(item, dict) and item.get("name"):

@@ -287,30 +287,29 @@ class MessengerAgent:
 
             # --- 2. THE CONNECT BUTTON HUNT ---
             # ── STRATEGY ─────────────────────────────────────────────────────────
-            # LinkedIn has TWO types of profiles:
+            # LinkedIn has TWO profile layouts:
             #
-            # TYPE A — Standard (Non-Creator): Connect button is DIRECTLY visible
-            #   UI: [Connect] [Message] [···]
-            #   DOM: <a href="/preload/custom-invite/?vanityName=...">
-            #        OR <button aria-label="Invite ... to connect">
+            # TYPE A — Standard (Non-Creator):
+            #   UI: [Connect] [Message] [···]   OR   [Message] [Connect] [···]
+            #   DOM: <a href="/preload/custom-invite/"> or <button aria-label="Invite...">
             #
-            # TYPE B — Creator: Connect is HIDDEN inside the ··· (More) dropdown
-            #   UI: [Message] [Follow] [···]
-            #   DOM: <button aria-label="More"> → opens menu →
-            #        <a role="menuitem" href="/preload/custom-invite/...">
+            # TYPE B — Creator (3-button): Follow is primary, Connect is in ···
+            #   UI: [Follow] [Message] [···]
             #
-            # SAFETY: The "More profiles for you" SIDEBAR also has Connect buttons
-            # for other people. We prevent accidental sidebar clicks by:
-            #   - Scoping PATH 1 & 2 to <main> (sidebar is always in <aside>)
-            #   - PATH 3 matches on `custom-invite` href which is profile-specific
+            # TYPE C — Creator with website (4-button): Follow is primary
+            #   UI: [Follow] [Message] [Visit my website] [···]
+            #
+            # SAFETY CRITICAL: LinkedIn's "More profiles for you" RIGHT COLUMN
+            # renders inside <main>, NOT <aside>. Simple DOM-tree checks are NOT
+            # enough. We use a JS bounding-rect check: the profile action buttons
+            # are always in the LEFT/CENTER column (x < ~700px on a 1280px viewport).
+            # Sidebar cards are always rendered at x > 900px. This positional check
+            # is viewport-based and immune to LinkedIn's obfuscated class names.
             # ─────────────────────────────────────────────────────────────────────
             connect_btn = None
             main_area = page.locator("main")
 
-            # PATH 1: TYPE A — Direct Connect link/button visible on the profile
-            # Scope strictly to <main> to avoid sidebar buttons.
-            # The href /preload/custom-invite/ or aria-label "Invite X to connect"
-            # are set by LinkedIn for the current profile's Connect action.
+            # PATH 1: TYPE A — Direct custom-invite href or aria-label
             direct_btn = main_area.locator(
                 "a[href*='/preload/custom-invite/'], "
                 "a[href*='custom-invite'], "
@@ -320,9 +319,9 @@ class MessengerAgent:
             if direct_btn.is_visible(timeout=1500):
                 connect_btn = direct_btn
 
-            # PATH 2: Text-based Connect button (fallback for older DOM patterns)
-            # Iterates all visible "Connect" text buttons and uses JS to confirm
-            # the element is not inside an <aside> or sidebar recommendation widget.
+            # PATH 2: Text-based Connect button
+            # KEY FIX: Uses JS bounding rect to reject sidebar buttons (x > 700px).
+            # This is the ONLY reliable check since the sidebar is INSIDE <main>.
             if not connect_btn:
                 try:
                     all_connect = main_area.locator(
@@ -335,13 +334,14 @@ class MessengerAgent:
                         try:
                             if not btn.is_visible():
                                 continue
-                            # Double-check: not inside a sidebar/recommendation widget
-                            in_sidebar = btn.evaluate(
-                                "el => !!el.closest('aside') || "
-                                "!!el.closest('[aria-label*=\"profiles for you\"]') || "
-                                "!!el.closest('[data-view-name*=\"pymk\"]')"
+                            # Bounding-rect check: profile action buttons are always
+                            # in the left/center column. Sidebar starts at x > 900px.
+                            # Anything beyond x=700 on a standard viewport is a sidebar element.
+                            rect = btn.evaluate(
+                                "el => { const r = el.getBoundingClientRect(); "
+                                "return {x: r.x, width: r.width}; }"
                             )
-                            if not in_sidebar:
+                            if rect and rect.get("x", 9999) < 700:
                                 connect_btn = btn
                                 break
                         except Exception:
@@ -349,17 +349,30 @@ class MessengerAgent:
                 except Exception:
                     pass
 
-
-            # PATH 3: More (···) dropdown — Creator profiles hide Connect inside the three-dots menu.
-            # IMPORTANT: There can be multiple More buttons on the page (profile header + posts).
-            # The profile header's More button opens a menu containing custom-invite link.
-            # We try each visible More button until we find the one with Connect.
+            # PATH 3: ··· (More) dropdown — for Creator profiles (3 or 4 buttons)
+            # Handles BOTH aria-label='More' (3-button) AND aria-label='More actions'
+            # (4-button creator profiles that also have a 'Visit my website' button).
+            # Also uses bounding-rect check so we only open the profile-header More button,
+            # not a More button inside a sidebar card or a post.
             if not connect_btn:
                 try:
-                    all_more_btns = page.locator("button[aria-label='More']").all()
+                    more_selector = (
+                        "button[aria-label='More'], "
+                        "button[aria-label='More actions']"
+                    )
+                    all_more_btns = page.locator(more_selector).all()
                     for more_btn in all_more_btns:
                         try:
                             if not more_btn.is_visible():
+                                continue
+                            # Reject sidebar More buttons using bounding-rect check
+                            rect = more_btn.evaluate(
+                                "el => { const r = el.getBoundingClientRect(); "
+                                "return {x: r.x, y: r.y}; }"
+                            )
+                            # Profile-header More button is always in top-left column
+                            # (x < 700, y < 600). Skip anything further right or very far down.
+                            if rect and (rect.get("x", 9999) > 700 or rect.get("y", 9999) > 600):
                                 continue
                             more_btn.scroll_into_view_if_needed()
                             page.evaluate("window.scrollBy(0, -100)")
@@ -367,8 +380,6 @@ class MessengerAgent:
                             more_btn.click(force=True)
                             page.wait_for_timeout(1500)
 
-                            # LinkedIn's invite menu item has a unique, profile-specific href.
-                            # Matching on href is the most robust selector available.
                             dropdown_connect = page.locator(
                                 "a[role='menuitem'][href*='custom-invite'], "
                                 "a[role='menuitem'][aria-label*='connect'], "
@@ -376,9 +387,8 @@ class MessengerAgent:
                             ).first
                             if dropdown_connect.is_visible(timeout=2000):
                                 connect_btn = dropdown_connect
-                                break  # Found it — stop trying More buttons
+                                break
                             else:
-                                # This More button didn't have Connect — close it and try the next
                                 try:
                                     page.keyboard.press("Escape")
                                     page.wait_for_timeout(500)
@@ -432,7 +442,7 @@ class MessengerAgent:
                 
                 # Give the modal a tiny bit of time to slide into view and become stable
                 page.wait_for_timeout(1000)
-                
+
                 for sel in send_blank_selectors:
                     try:
                         btn = page.locator(sel).first
@@ -450,24 +460,66 @@ class MessengerAgent:
                             send_blank_btn = fallback
                     except Exception:
                         pass
-                
+
+                # ── SAFETY NET: Name Verification ────────────────────────────────
+                # LinkedIn shows: "Personalize your invitation to [Full Name] by..."
+                # or the dialog header contains the target's name.
+                # Read the modal text and verify it contains the lead's first name
+                # before committing to send. This catches the sidebar misclick bug.
+                # ─────────────────────────────────────────────────────────────────
                 if send_blank_btn:
+                    first_name = name.split()[0].lower() if name else ""
+                    name_verified = False
+                    try:
+                        # Try to read the dialog body text for name confirmation
+                        dialog_text = ""
+                        for dialog_sel in [
+                            "div[role='dialog']",
+                            "div[data-test-modal]",
+                            "[role='dialog']",
+                        ]:
+                            try:
+                                el = page.locator(dialog_sel).first
+                                if el.is_visible(timeout=1000):
+                                    dialog_text = el.inner_text().lower()
+                                    break
+                            except Exception:
+                                continue
+
+                        if dialog_text and first_name and first_name in dialog_text:
+                            name_verified = True
+                        elif not dialog_text:
+                            # Could not read dialog (navigated page flow) — trust the URL check
+                            name_verified = True
+                        else:
+                            # Dialog is visible but name does NOT match — wrong person!
+                            console.print(
+                                f"  [red]  ✘ SAFETY NET: Dialog name mismatch! "
+                                f"Expected '{name}' but modal text doesn't match. "
+                                f"Aborting to prevent wrong connection.[/red]"
+                            )
+                            try:
+                                page.keyboard.press("Escape")
+                            except Exception:
+                                pass
+                            return False, "safety_name_mismatch"
+                    except Exception:
+                        # If we can't verify, proceed cautiously (URL-based flow)
+                        name_verified = True
+
+                if send_blank_btn and name_verified:
                     if ghost_run:
                         console.print(f"  [dim]  GHOST RUN: Would have clicked '{send_blank_btn.inner_text().strip()}' for {name}[/dim]")
                         return True, "ghost_sent"
-                    # Remove force=True so Playwright validates actionability natively
-                    # Wait an extra 1.5 seconds to ensure LinkedIn's React app has fully bound the onClick event listeners
                     page.wait_for_timeout(1500)
-                    
+
                     try:
-                        # The most bulletproof way to click in React SPAs: Accessibility Focus + Enter
                         send_blank_btn.focus()
                         page.wait_for_timeout(500)
                         page.keyboard.press("Enter")
                     except Exception:
-                        # Fallback to a raw DOM click if focus fails
                         send_blank_btn.evaluate("node => node.click()")
-                        
+
                     human_sleep(2.0, 4.0, "After send")
                     return True, "Blank Sent"
                 else:
