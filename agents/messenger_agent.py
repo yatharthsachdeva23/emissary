@@ -306,7 +306,7 @@ class MessengerAgent:
             # Sidebar cards are always rendered at x > 900px. This positional check
             # is viewport-based and immune to LinkedIn's obfuscated class names.
             # ─────────────────────────────────────────────────────────────────────
-            connect_btn = None
+            candidates = []
             main_area = page.locator("main")
 
             # PATH 1: TYPE A — Direct custom-invite href or aria-label
@@ -317,161 +317,147 @@ class MessengerAgent:
                 "a[aria-label*='Invite'][aria-label*='connect']"
             ).first
             if direct_btn.is_visible(timeout=1500):
-                connect_btn = direct_btn
+                candidates.append((direct_btn, "direct"))
 
             # PATH 2: Text-based Connect button
-            # KEY FIX: Uses JS bounding rect to reject sidebar buttons (x > 700px).
-            # This is the ONLY reliable check since the sidebar is INSIDE <main>.
-            if not connect_btn:
-                try:
-                    all_connect = main_area.locator(
-                        "button:has(span:text-is('Connect')), "
-                        "a:has(span:text-is('Connect')), "
-                        "button:text-is('Connect'), "
-                        "a:text-is('Connect')"
-                    ).all()
-                    for btn in all_connect:
-                        try:
-                            if not btn.is_visible():
-                                continue
-                            # Bounding-rect check: profile action buttons are always
-                            # in the left/center column. Sidebar starts at x > 900px.
-                            # Anything beyond x=700 on a standard viewport is a sidebar element.
-                            rect = btn.evaluate(
-                                "el => { const r = el.getBoundingClientRect(); "
-                                "return {x: r.x, width: r.width}; }"
-                            )
-                            if rect and rect.get("x", 9999) < 700:
-                                connect_btn = btn
-                                break
-                        except Exception:
-                            continue
-                except Exception:
-                    pass
-
-            # PATH 3: ··· (More) dropdown — for Creator profiles (3 or 4 buttons)
-            # Handles BOTH aria-label='More' (3-button) AND aria-label='More actions'
-            # (4-button creator profiles that also have a 'Visit my website' button).
-            # Also uses bounding-rect check so we only open the profile-header More button,
-            # not a More button inside a sidebar card or a post.
-            if not connect_btn:
-                try:
-                    more_selector = (
-                        "button[aria-label='More'], "
-                        "button[aria-label='More actions']"
-                    )
-                    all_more_btns = page.locator(more_selector).all()
-                    for more_btn in all_more_btns:
-                        try:
-                            if not more_btn.is_visible():
-                                continue
-                            # Reject sidebar More buttons using bounding-rect check
-                            rect = more_btn.evaluate(
-                                "el => { const r = el.getBoundingClientRect(); "
-                                "return {x: r.x, y: r.y}; }"
-                            )
-                            # Profile-header More button is always in top-left column
-                            # (x < 700, y < 600). Skip anything further right or very far down.
-                            if rect and (rect.get("x", 9999) > 700 or rect.get("y", 9999) > 600):
-                                continue
-                            more_btn.scroll_into_view_if_needed()
-                            page.evaluate("window.scrollBy(0, -100)")
-                            page.wait_for_timeout(400)
-                            more_btn.click(force=True)
-                            page.wait_for_timeout(1500)
-
-                            dropdown_connect = page.locator(
-                                "a[role='menuitem'][href*='custom-invite'], "
-                                "a[role='menuitem'][aria-label*='connect'], "
-                                "[role='menuitem'][aria-label*='Invite'][aria-label*='connect']"
-                            ).first
-                            if dropdown_connect.is_visible(timeout=2000):
-                                connect_btn = dropdown_connect
-                                break
-                            else:
-                                try:
-                                    page.keyboard.press("Escape")
-                                    page.wait_for_timeout(500)
-                                except Exception:
-                                    pass
-                        except Exception:
-                            continue
-                except Exception:
-                    pass
-
-            # --- 3. EXECUTE THE CLICK ---
-            if connect_btn and connect_btn.is_visible():
-                console.print(f"  [cyan]  ✓ Found Connect button for {name}. Clicking...[/cyan]")
-                
-                # Critical Fix: Playwright's scroll puts the button at the very top of the screen,
-                # placing it directly under the sticky navigation bar (which contains the Premium button).
-                # We scroll it into view, then manually scroll UP by 150px to clear the sticky header.
-                connect_btn.scroll_into_view_if_needed()
-                page.evaluate("window.scrollBy(0, -150)")
-                page.wait_for_timeout(500)
-                
-                # Now we can safely click without force=True, ensuring we don't accidentally click the overlaying navbar.
-                # Note: If connect_btn is an <a href> link (from the More dropdown), clicking it navigates
-                # to /preload/custom-invite/ which renders the invitation UI on the profile page itself.
-                url_before_click = page.url
-                connect_btn.click()
-                page.wait_for_timeout(2500)  # Wait for either modal or navigation
-
-                # Check if we navigated to a new page (custom-invite flow)
-                if "custom-invite" in page.url or page.url != url_before_click:
-                    # Navigation happened — wait for page to fully render
+            try:
+                all_connect = main_area.locator(
+                    "button:has(span:text-is('Connect')), "
+                    "a:has(span:text-is('Connect')), "
+                    "button:text-is('Connect'), "
+                    "a:text-is('Connect')"
+                ).all()
+                for btn in all_connect:
                     try:
-                        page.wait_for_load_state("domcontentloaded", timeout=10000)
-                    except Exception:
-                        pass
-                    page.wait_for_timeout(1500)
-
-                # Search for Send button — covers both modal (dialog) and navigated page
-                send_blank_btn = None
-                send_blank_selectors = [
-                    "div[role='dialog'] button[aria-label='Send without a note']",
-                    "div[role='dialog'] button:has-text('Send without a note')",
-                    "div[role='dialog'] button[aria-label='Send invitation']",
-                    "div[role='dialog'] button:has-text('Send invitation')",
-                    # Broader fallbacks for navigated invite page (no dialog wrapper)
-                    "button[aria-label='Send without a note']",
-                    "button:has-text('Send without a note')",
-                    "button[aria-label='Send invitation']",
-                    "button:has-text('Send invitation')",
-                ]
-                
-                # Give the modal a tiny bit of time to slide into view and become stable
-                page.wait_for_timeout(1000)
-
-                for sel in send_blank_selectors:
-                    try:
-                        btn = page.locator(sel).first
-                        if btn.is_visible(timeout=2000):
-                            send_blank_btn = btn
-                            break
+                        if not btn.is_visible():
+                            continue
+                        # Bounding-rect check: profile action buttons are always
+                        # in the left/center column. Sidebar starts at x > 900px.
+                        rect = btn.evaluate(
+                            "el => { const r = el.getBoundingClientRect(); "
+                            "return {x: r.x, width: r.width}; }"
+                        )
+                        if rect and rect.get("x", 9999) < 700:
+                            candidates.append((btn, "direct"))
                     except Exception:
                         continue
+            except Exception:
+                pass
 
-                # Fallback: any 'Send' button in dialog or on page
-                if not send_blank_btn:
+            # PATH 3: ··· (More) dropdown — for Creator profiles
+            try:
+                more_selector = (
+                    "button[aria-label='More'], "
+                    "button[aria-label='More actions']"
+                )
+                all_more_btns = page.locator(more_selector).all()
+                for more_btn in all_more_btns:
                     try:
-                        fallback = page.locator("div[role='dialog'] button:has-text('Send'), button:has-text('Send')").first
-                        if fallback.is_visible(timeout=1500):
-                            send_blank_btn = fallback
+                        if not more_btn.is_visible():
+                            continue
+                        # Reject sidebar More buttons using bounding-rect check
+                        rect = more_btn.evaluate(
+                            "el => { const r = el.getBoundingClientRect(); "
+                            "return {x: r.x, y: r.y}; }"
+                        )
+                        if rect and (rect.get("x", 9999) > 700 or rect.get("y", 9999) > 600):
+                            continue
+                        candidates.append((more_btn, "dropdown"))
                     except Exception:
-                        pass
+                        continue
+            except Exception:
+                pass
 
-                # ── SAFETY NET: Name Verification ────────────────────────────────
-                # LinkedIn shows: "Personalize your invitation to [Full Name] by..."
-                # or the dialog header contains the target's name.
-                # Read the modal text and verify it contains the lead's first name
-                # before committing to send. This catches the sidebar misclick bug.
-                # ─────────────────────────────────────────────────────────────────
-                if send_blank_btn:
-                    first_name = name.split()[0].lower() if name else ""
-                    name_verified = False
-                    try:
-                        # Try to read the dialog body text for name confirmation
+            if not candidates:
+                console.print(f"  [red]  ❌ Connect button completely hidden/missing for {name}. Manual review needed.[/red]")
+                return False, "connect_button_missing"
+
+            # --- 3. EXECUTE THE CLICK AND VERIFY LOOP ---
+            for attempt, (btn, btn_type) in enumerate(candidates, 1):
+                try:
+                    connect_btn = None
+                    if btn_type == "direct":
+                        connect_btn = btn
+                    elif btn_type == "dropdown":
+                        btn.scroll_into_view_if_needed()
+                        page.evaluate("window.scrollBy(0, -100)")
+                        page.wait_for_timeout(400)
+                        btn.click(force=True)
+                        page.wait_for_timeout(1500)
+
+                        dropdown_connect = page.locator(
+                            "a[role='menuitem'][href*='custom-invite'], "
+                            "a[role='menuitem'][aria-label*='connect'], "
+                            "[role='menuitem'][aria-label*='Invite'][aria-label*='connect']"
+                        ).first
+                        if dropdown_connect.is_visible(timeout=2000):
+                            connect_btn = dropdown_connect
+                        else:
+                            try:
+                                page.keyboard.press("Escape")
+                                page.wait_for_timeout(500)
+                            except Exception:
+                                pass
+                            continue  # Try next candidate
+
+                    if not connect_btn or not connect_btn.is_visible():
+                        continue
+
+                    if len(candidates) > 1:
+                        console.print(f"  [cyan]  ✓ Trying Connect candidate {attempt}/{len(candidates)} for {name}...[/cyan]")
+                    else:
+                        console.print(f"  [cyan]  ✓ Found Connect button for {name}. Clicking...[/cyan]")
+
+                    connect_btn.scroll_into_view_if_needed()
+                    page.evaluate("window.scrollBy(0, -150)")
+                    page.wait_for_timeout(500)
+
+                    url_before_click = page.url
+                    connect_btn.click()
+                    page.wait_for_timeout(2500)
+
+                    if "custom-invite" in page.url or page.url != url_before_click:
+                        try:
+                            page.wait_for_load_state("domcontentloaded", timeout=10000)
+                        except Exception:
+                            pass
+                        page.wait_for_timeout(1500)
+
+                    send_blank_btn = None
+                    send_blank_selectors = [
+                        "div[role='dialog'] button[aria-label='Send without a note']",
+                        "div[role='dialog'] button:has-text('Send without a note')",
+                        "div[role='dialog'] button[aria-label='Send invitation']",
+                        "div[role='dialog'] button:has-text('Send invitation')",
+                        "button[aria-label='Send without a note']",
+                        "button:has-text('Send without a note')",
+                        "button[aria-label='Send invitation']",
+                        "button:has-text('Send invitation')",
+                    ]
+
+                    page.wait_for_timeout(1000)
+
+                    for sel in send_blank_selectors:
+                        try:
+                            el = page.locator(sel).first
+                            if el.is_visible(timeout=2000):
+                                send_blank_btn = el
+                                break
+                        except Exception:
+                            continue
+
+                    if not send_blank_btn:
+                        try:
+                            fallback = page.locator("div[role='dialog'] button:has-text('Send'), button:has-text('Send')").first
+                            if fallback.is_visible(timeout=1500):
+                                send_blank_btn = fallback
+                        except Exception:
+                            pass
+
+                    # ── SAFETY NET: Name Verification ────────────────────────────────
+                    if send_blank_btn:
+                        first_name = name.split()[0].lower() if name else ""
+                        name_verified = False
                         dialog_text = ""
                         for dialog_sel in [
                             "div[role='dialog']",
@@ -489,51 +475,50 @@ class MessengerAgent:
                         if dialog_text and first_name and first_name in dialog_text:
                             name_verified = True
                         elif not dialog_text:
-                            # Could not read dialog (navigated page flow) — trust the URL check
                             name_verified = True
                         else:
-                            # Dialog is visible but name does NOT match — wrong person!
                             console.print(
-                                f"  [red]  ✘ SAFETY NET: Dialog name mismatch! "
-                                f"Expected '{name}' but modal text doesn't match. "
-                                f"Aborting to prevent wrong connection.[/red]"
+                                f"  [red]  ✘ SAFETY NET: Mismatch! Expected '{first_name}' but modal text "
+                                f"doesn't match. Pressing Escape and trying next button...[/red]"
                             )
                             try:
                                 page.keyboard.press("Escape")
+                                page.wait_for_timeout(1000)
                             except Exception:
                                 pass
-                            return False, "safety_name_mismatch"
-                    except Exception:
-                        # If we can't verify, proceed cautiously (URL-based flow)
-                        name_verified = True
+                            continue  # **CRITICAL: Try the next candidate button!**
 
-                if send_blank_btn and name_verified:
-                    if ghost_run:
-                        console.print(f"  [dim]  GHOST RUN: Would have clicked '{send_blank_btn.inner_text().strip()}' for {name}[/dim]")
-                        return True, "ghost_sent"
-                    page.wait_for_timeout(1500)
+                    if send_blank_btn and name_verified:
+                        if ghost_run:
+                            console.print(f"  [dim]  GHOST RUN: Would have clicked '{send_blank_btn.inner_text().strip()}' for {name}[/dim]")
+                            return True, "ghost_sent"
+                        page.wait_for_timeout(1500)
 
-                    try:
-                        send_blank_btn.focus()
-                        page.wait_for_timeout(500)
-                        page.keyboard.press("Enter")
-                    except Exception:
-                        send_blank_btn.evaluate("node => node.click()")
+                        try:
+                            send_blank_btn.focus()
+                            page.wait_for_timeout(500)
+                            page.keyboard.press("Enter")
+                        except Exception:
+                            send_blank_btn.evaluate("node => node.click()")
 
-                    human_sleep(2.0, 4.0, "After send")
-                    return True, "Blank Sent"
-                else:
-                    console.print(f"  [yellow]  ⚠ Reached Connect modal, but couldn't find the Send button![/yellow]")
-                    try:
-                        page.keyboard.press("Escape")
-                    except Exception:
-                        pass
-                    return False, "send_button_not_found"
-                    
-            else:
-                # If all 4 tactics fail, they are either actually restricted or we missed it. Don't assume connected.
-                console.print(f"  [red]  ❌ Connect button completely hidden/missing for {name}. Manual review needed.[/red]")
-                return False, "connect_button_missing"
+                        human_sleep(2.0, 4.0, "After send")
+                        return True, "Blank Sent"
+                    else:
+                        console.print(f"  [yellow]  ⚠ Reached Connect modal, but couldn't find the Send button! Trying next...[/yellow]")
+                        try:
+                            page.keyboard.press("Escape")
+                            page.wait_for_timeout(1000)
+                        except Exception:
+                            pass
+                        continue
+
+                except Exception as e:
+                    console.print(f"  [yellow]  ⚠ Candidate {attempt} failed: {e}[/yellow]")
+                    continue
+
+            # If we exit the loop, all candidates failed
+            console.print(f"  [red]  ❌ Exhausted all {len(candidates)} candidate Connect buttons for {name}. Manual review needed.[/red]")
+            return False, "exhausted_candidates"
 
         except Exception as e:
             console.print(f"[red]  Connection error for {name}: {e}[/red]")
