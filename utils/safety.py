@@ -12,7 +12,7 @@ from rich.console import Console
 console = Console()
 
 # Absolute hard caps — never exceed these
-ABSOLUTE_DAILY_MAX = 20
+ABSOLUTE_DAILY_MAX = 40
 ABSOLUTE_BATCH_MAX = 5
 
 
@@ -48,11 +48,7 @@ def is_weekend() -> bool:
 
 
 def get_effective_daily_limit(configured_limit: int) -> int:
-    """Reduce limit on weekends to appear more human."""
-    if is_weekend():
-        effective = min(configured_limit, 10)
-        console.print(f"[yellow]Weekend detected — reducing daily limit to {effective}[/yellow]")
-        return effective
+    """Return the configured limit capped by the absolute daily max, ignoring weekends."""
     return min(configured_limit, ABSOLUTE_DAILY_MAX)
 
 

@@ -80,7 +80,7 @@ class DiscoveryAgent:
         self.serper_key = os.getenv("SERPER_API_KEY", "")
         self.daily_limit = int(os.getenv("DAILY_SEND_LIMIT", "20"))
 
-    def _serper_search(self, query: str, num: int = 5) -> list:
+    def _serper_search(self, query: str, num: int = 10) -> list:
         if not self.serper_key or self.serper_key.startswith("your_"):
             return []
         headers = {"X-API-KEY": self.serper_key, "Content-Type": "application/json"}
