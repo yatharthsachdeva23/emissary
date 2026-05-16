@@ -64,6 +64,7 @@ DISCARD immediately (score=0.0) if:
 - The person IS a student or intern themselves (not a decision-maker)
 - The post is just a student sharing their own internship search
 - No clear LinkedIn profile URL (e.g., it's a company page or job posting)
+- The person is located outside of India (e.g., San Francisco, USA, UK, Europe, etc.)
 
 Return ONLY a JSON array in ```json ... ``` tags:
 [{{"name":null,"company":null,"role":null,"linkedin_url":"url","snippet":"snippet","score":0.0,"discard_reason":null,"source_query":"query"}}]
