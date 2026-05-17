@@ -124,6 +124,19 @@ class DiscoveryAgent:
         except Exception:
             return set()
 
+    def _normalize_linkedin_url(self, url: str) -> str:
+        """Extract the profile URL from a LinkedIn post URL."""
+        url = url.split("?")[0]
+        if "/posts/" in url:
+            try:
+                parts = url.split("/posts/")[1]
+                username = parts.split("_")[0]
+                if username:
+                    return f"https://www.linkedin.com/in/{username}/"
+            except Exception:
+                pass
+        return url
+
     def gather_raw_leads(self, dry_run: bool = False) -> list:
         if dry_run:
             console.print("[yellow]DRY RUN: Using mock leads[/yellow]")
@@ -134,7 +147,15 @@ class DiscoveryAgent:
             for query in SEARCH_QUERIES:
                 all_results.extend(self._serper_search(query))
                 p.advance(task)
-        filtered = [r for r in all_results if "linkedin.com" in r.get("url","") or "internshala.com" in r.get("url","")]
+        
+        filtered = []
+        for r in all_results:
+            url = r.get("url", "")
+            if "linkedin.com" in url or "internshala.com" in url:
+                if "linkedin.com" in url:
+                    r["url"] = self._normalize_linkedin_url(url)
+                filtered.append(r)
+                
         console.print(f"[green]✓ {len(filtered)} raw results[/green]")
         return filtered
 
