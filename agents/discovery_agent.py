@@ -42,6 +42,12 @@ SEARCH_QUERIES = [
     # YC and funded startups
     'site:linkedin.com/in "YC" OR "Y Combinator" "India" "founder" OR "engineer" "2025"',
     'site:linkedin.com/in "series A" OR "series B" "CTO" OR "VP" "India" "2025" -intern',
+    # Big Tech / Enterprise Targets
+    'site:linkedin.com/in "Software Engineer" OR "SDE" "Google" OR "Microsoft" OR "Amazon" "India" -intern',
+    'site:linkedin.com/in "Senior Engineer" OR "Staff Engineer" "Meta" OR "Apple" OR "Netflix" "India" -intern',
+    'site:linkedin.com/in "Engineering Manager" "Uber" OR "Atlassian" OR "Stripe" "India" -intern',
+    'site:linkedin.com/in "Software Development Engineer" "Swiggy" OR "Zomato" OR "Flipkart" "India" -intern',
+    'site:linkedin.com/in "Backend Engineer" OR "AI Engineer" "India" "hiring" -intern',
 ]
 
 SCORING_PROMPT = """You are a lead-scoring assistant for an internship outreach tool.
@@ -52,15 +58,14 @@ Student Profile:
 Score each lead from 0.0 to 1.0.
 
 PRIORITIZE (high scores):
-- Founders, Co-Founders, CTOs, VPs, Engineering Managers, Tech Leads, Principal Engineers
-- Small/mid-size startups (not FAANG/BigTech)
+- Founders, Co-Founders, CTOs, VPs, Engineering Managers, Tech Leads, Principal Engineers, Senior SDEs
+- Companies ranging from stealth startups to Big Tech / FAANG (Google, Microsoft, Amazon, etc.)
 - Active in AI, backend, security, developer tools, SaaS
-- Located in India (Bangalore, Delhi, Gurugram, Hyderabad, Mumbai, remote)
+- Located in India (Bangalore, Delhi, Gurugram, Hyderabad, Mumbai, Pune, remote)
 - Recently posting about building, hiring, or shipping product
 
 DISCARD immediately (score=0.0) if:
 - Role contains: intern, internship, student, trainee, fresher, apprentice
-- Company is: Google, Microsoft, Amazon, Meta, Apple, Infosys, TCS, Wipro, Accenture, Cognizant
 - The person IS a student or intern themselves (not a decision-maker)
 - The post is just a student sharing their own internship search
 - No clear LinkedIn profile URL (e.g., it's a company page or job posting)
