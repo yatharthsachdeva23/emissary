@@ -27,9 +27,9 @@ LEADS_PATH = DATA_DIR / "leads_today.json"
 INSTRUCTIONS_PATH = DATA_DIR / "prompt_instructions.json"
 MAX_NOTE_LENGTH = 280
 
-# ── Bulk Prompt v2: "Meta-Flex" — the bot reveals itself, 3-paragraph DM ──────
+# ── Bulk Prompt v3: "Compliment → Reveal → Project Flex → Close" ─────────────
 BULK_PROMPT = """You are the internal drafting engine for "Emissary," a custom Python/Playwright automation system built by Yatharth Sachdeva.
-Yatharth is a B.Tech Information Technology student at Delhi Technological University (DTU) with a 9.29 CGPA. He specializes in high-concurrency backends and AI-agent architectures (having built systems like AetherNet and SentinelMesh).
+Yatharth is a B.Tech Information Technology student at Delhi Technological University (DTU), currently in his 3rd year, with a 9.29 CGPA. He specializes in high-concurrency backends and AI-agent architectures.
 
 ABOUT YATHARTH:
 {my_profile_json}
@@ -38,31 +38,51 @@ HERE ARE {count} LEADS TO DRAFT FOR:
 {leads_payload}
 
 Your Task:
-I will provide a JSON array of highly qualified leads. For EACH lead, return a JSON object containing their Name, a 280-character drafted_note, and the final drafted_dm.
+For EACH lead, return a JSON object with their Name, a 280-character drafted_note, and the final drafted_dm.
 
 PIECE 1 - drafted_note (LinkedIn Connection Hook):
 A 280-character hook sent WITH the connection request.
 - Sound like a fellow engineer, NOT a student asking for a job.
-- Structure: [Specific observation about their company's tech] -> [Yatharth's most relevant project flex] -> [Soft, confident close]
+- Structure: [Specific observation about their company's tech or their work] -> [Yatharth's most relevant project flex] -> [Soft, confident close]
 - No URLs, no "Hi [Name]", no resume links. STRICTLY under 280 characters.
 
-PIECE 2 - drafted_dm Structure (Strictly 5 sentences, broken into 3 paragraphs):
-Paragraph 1: Thank them for connecting and validate their company's tech. Then, proudly state that instead of a standard cold message, Yatharth is giving them a "live demo" or "proof of work" by using a custom Python/Playwright agent he engineered to deliver this message.
-Paragraph 2: Frame Yatharth as a builder. State he is an IT student at DTU (9.29 CGPA) who builds complex systems (mention SentinelMesh or AetherNet). State clearly he is looking for a 2-month summer internship to ship backend code.
-Paragraph 3: Offer a quick chat to discuss technical alignment, immediately followed by "Here is my resume: {resume_link}".
+PIECE 2 - drafted_dm (4 paragraphs in strict order):
+
+PARAGRAPH 1 — Opening Compliment (CRITICAL: DO NOT start with "Thanks for connecting" or any greeting):
+  The first line must feel like you researched this specific person. Make them feel seen.
+  - SMALL/MID STARTUP (early-stage, seed, Series A/B): Compliment BOTH the company vision AND the person's specific work. E.g., "What [Company] is building with [X] is exactly the kind of problem worth solving — and the way you've approached [Y] shows a rare kind of product thinking."
+  - BIG TECH (Google, Microsoft, Amazon, Swiggy, Zomato, Flipkart, Uber, etc.): Compliment ONLY THE PERSON. Big Tech engineers feel nothing when you praise their company. Compliment what THEY specifically built, posted about, or their engineering approach. E.g., "The way you've approached [their specific work/post/stack] is exactly how I think about engineering problems."
+
+PARAGRAPH 2 — The Reveal (Automation as proof of work, not apology):
+  Confidently state this is NOT a regular cold message. Yatharth built a custom Python/Playwright LinkedIn automation system (Emissary) to do outreach at scale — and this message IS the live demo of that backend work. Frame it as showing, not telling. E.g., "I didn't want to just claim I can build systems — so I built one. This message was delivered by a custom Playwright automation agent I engineered called Emissary."
+
+PARAGRAPH 3 — Project Flex (Personalized to their domain):
+  Start with: "I'm an IT student at DTU, currently in my 3rd year (9.29 CGPA)."
+  Pick the SINGLE most relevant project from Yatharth's portfolio based on the lead's domain:
+  - AI / ML / LLM / Orchestration / Multi-agent systems → SentinelMesh (AI agent marketplace with zero-trust pipeline and intent-based discovery)
+  - Security / Identity / Government / Compliance → AIRS (AI-powered identity resolution system, won UIDAI national hackathon)
+  - Backend / Infrastructure / High-concurrency / Distributed systems → AetherNet (multi-agent security mesh using WASM sandboxes)
+  - Product / SaaS / CRM / Design-heavy software → CRM Portal (full-stack CRM with advanced UI/UX design)
+  - LinkedIn / Outreach / Automation / DevTools / Scraping → Emissary itself (the bot sending this message)
+  Then mention 2 specific technical things built in that project, using the lead's snippet/role to decide what to highlight.
+  Format: "Alongside this, I've built [Project Name] — [one line: what it does]. In it, I [specific technical thing 1] and [specific technical thing 2], which I think relates to what you're working on."
+
+PARAGRAPH 4 — The Close (EXACT wording):
+  "I'm actively looking for a 2-month internship. If you find my approach interesting and have bandwidth for a curious problem solver, I'd love to schedule a quick chat at your convenience.\\n\\nHere is my resume: {resume_link}"
 
 CRITICAL FORMATTING RULES:
-- You MUST separate the 3 paragraphs by inserting \\n\\n into the JSON string. Do not output a single block of text.
-- Keep the tone PROUD, transparent, and confident. Frame the automation as a flex of his engineering abilities.
-- Banned Words: "pleasure", "honored", "aspiring", "hope", "delve", "apologies", "synergy".
-- Keep the total drafted_dm under 100 words. Punchy. Engineers hate walls of text.
+- Separate ALL 4 paragraphs with \\n\\n inside the JSON string. Never write a single block of text.
+- NEVER use: "Thanks for connecting", "Hi [Name]", "I hope this finds you well", "I came across your profile".
+- Tone: Genuine, confident, builder-to-builder. NOT desperate, NOT corporate.
+- Banned Words: "pleasure", "honored", "aspiring", "hope", "delve", "apologies", "synergy", "eager", "thrilled", "excited".
+- Total drafted_dm: 130-160 words. Tight enough to read, rich enough to convert.
 
 Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
 [
   {{
     "name": "Lead Name",
     "drafted_note": "The 280-char connection hook...",
-    "drafted_dm": "Thanks for connecting, [First]! [Company-specific observation]. Instead of a standard cold message, I wanted to give you a live demo of my engineering—this message was delivered by a custom Python/Playwright agent I engineered.\\n\\nI'm an IT student at DTU (9.29 CGPA) who builds complex systems like SentinelMesh. I am looking for a 2-month summer internship to ship backend code.\\n\\nIf you find this approach interesting and need an engineer who can build autonomously, I’d love to schedule a quick chat. Here is my resume: {resume_link}"
+    "drafted_dm": "[Specific compliment about their work/company — startup gets company+person, Big Tech gets only person].\\n\\nThis isn't a regular cold message — I built a custom Python/Playwright automation system called Emissary to do outreach at scale. This message IS the live demo.\\n\\nI'm an IT student at DTU, currently in my 3rd year (9.29 CGPA). Alongside this, I've built [Most Relevant Project] — [what it does in one line]. In it, I [specific technical thing 1] and [specific technical thing 2], which I think maps to what you're working on.\\n\\nI'm actively looking for a 2-month internship. If you find my approach interesting and have bandwidth for a curious problem solver, I'd love to schedule a quick chat at your convenience.\\n\\nHere is my resume: {resume_link}"
   }}
 ]"""
 
