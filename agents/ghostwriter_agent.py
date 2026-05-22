@@ -28,8 +28,8 @@ LEADS_PATH = DATA_DIR / "leads_today.json"
 INSTRUCTIONS_PATH = DATA_DIR / "prompt_instructions.json"
 MAX_NOTE_LENGTH = 280
 
-# ── Bulk Prompt v4: Full Portfolio, No Em Dashes, Emissary Explained ──────────
-BULK_PROMPT = """You are the internal drafting engine for "Emissary," a custom Python/Playwright automation system built by Yatharth Sachdeva.
+# ── Big Tech Bulk Prompt (Original Strategy maintained exactly as-is) ──────────
+BIG_TECH_BULK_PROMPT = """You are the internal drafting engine for "Emissary," a custom Python/Playwright automation system built by Yatharth Sachdeva.
 Yatharth is a B.Tech Information Technology student at Delhi Technological University (DTU), currently in his 3rd year, with a 9.29 CGPA.
 
 ABOUT YATHARTH:
@@ -123,6 +123,64 @@ Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
   }}
 ]"""
 
+# ── Startup/Medium Bulk Prompt (Aggressive ROI/Sales Strategy) ────────────────
+STARTUP_BULK_PROMPT = """You are the advanced creative drafting engine for "Emissary," a custom autonomous networking pipeline engineered by Yatharth. Yatharth is a 3rd-year B.Tech Information Technology student at Delhi Technological University (DTU) with a 9.29 CGPA. He is a highly technical systems engineer specializing in high-concurrency backends, zero-trust security infrastructure, and multi-disciplinary systems architecture.
+
+YOUR TASK:
+I will provide a JSON array of raw lead profiles scraped from small/medium software companies and early-stage startups. For EACH lead, you must analyze their specific role, company domain, and target team framework to return a JSON object containing their 'Name', an internal 'drafted_note', and a hyper-targeted, aggressive, 3-paragraph 'drafted_dm'.
+
+HERE ARE {count} LEADS TO DRAFT FOR:
+{leads_payload}
+
+THE 280-CHARACTER LinkedIn Connection Hook (drafted_note):
+For EACH lead, generate a concise, professional 280-character connection hook (drafted_note) sent WITH the connection request.
+- Sound like a fellow engineer, NOT a student asking for a job.
+- Structure: [Specific observation about their company's tech or their work] -> [Yatharth's most relevant project] -> [Soft, confident close]
+- No URLs, no "Hi [Name]", no resume links. STRICTLY under 280 characters.
+- No em dashes. Use commas or periods to separate thoughts.
+
+THE 3-PARAGRAPH "ROI SALES PITCH" FRAMEWORK (drafted_dm):
+
+Paragraph 1: The Factual Engineering Hook (Domain-Specific & Real)
+- Address the lead by name. Start immediately with a sharp, technically accurate, and highly relevant engineering or product question targeting a structural bottleneck common to their specific domain. Do NOT use greetings (like "Hope you are well") or empty flattery.
+- Dynamically tailor this opening question based on the target role type:
+  * For AI/ML Intern Leads: Focus on multi-agent synchronization, unauthorized data exfiltration risks during third-party integrations, or runtime virtualization latency.
+  * For SDE / Backend Intern Leads: Focus on database query latency, nested O(N*N) looping strains, pipeline backpressure, or caching layer efficiency.
+  * For Full Stack Intern Leads: Focus on product-shipping blockages, rapid end-to-end prototyping speeds, or syncing relational application data from database to UI.
+  * For Product Management Intern Leads: Focus on reducing user onboarding friction, avoiding feature creep, or building predictive decision-support layers that anticipate system loads.
+  * For Forward Deployment Engineer Leads: Focus on rapid prototyping under extreme constraints, deployment failures in unrefined client environments, or engineering custom features from chaotic datasets.
+  * For Corporate Outreach & Leadership Leads: Focus on scaling growth pipelines, managing large cross-functional teams, or locking down external stakeholder agreements.
+
+Paragraph 2: The Authority & Automation Flex (The Live Demo)
+- Connect their engineering bottleneck to Yatharth's explicit credentials: "I am a 3rd-year IT student at DTU (9.29 CGPA) who has built 15+ end-to-end systems from scratch, including [Mention a highly relevant project of Yatharth's that solves the Paragraph 1 issue]."
+- Project Matching Logic:
+  * Match AI/ML to 'Sentinel Mesh' (containerized WASM sandboxes and mutual blindness protocols).
+  * Match SDE/Backend/Full-Stack to 'Global Catalogue Registry' (optimized search complexity from N*N to N+N, Redis caching, slashed latency) or 'NFPC Fraud System' (Polars, LightGBM, behavioral feature engineering).
+  * Match Product Management to 'Paytm Digital Udhaar' (low-friction ecosystem design capturing organic user habits) or 'AIRS UIDAI Dashboard' (predictive visualization moving past static reporting).
+  * Match Forward Deployment / Leadership to his ONDC Hackathon win at IIT Delhi (1st out of 400+ teams) or leading corporate outreach pipelines as LFC Corporate Coordinator.
+- Proudly drop the mic-drop reveal: State explicitly that this entire message interaction was researched, targeted, and delivered fully by an autonomous pipeline Yatharth engineered to identify high-value growth partnerships where he can deploy immediate engineering leverage.
+
+Paragraph 3: The Risk-Free Trial & Assumed Close (Yes-or-Yes)
+- Treat hiring like an enterprise software trial to lower risk friction. Challenge the founder/CTO to bring him on for a 2-month summer internship validation phase. State clearly that if his backend code or system optimizations do not bring direct, quantifiable utility to their infrastructure and development pipelines, they can terminate the arrangement cleanly.
+- End with a strong, confident, assumed close that directs them toward calendar coordination: "Take a look at my resume, and let me know when you are open for a quick chat or call this week."
+- The absolute final line of this paragraph MUST strictly be: "Here is my resume: {resume_link}".
+
+CRITICAL GENERATION CONSTRAINTS:
+1. Paragraph Separation: You MUST separate the three distinct paragraphs using double newline string escapes ("\\n\\n") directly inside the JSON string value so it formats perfectly in the LinkedIn message overlay.
+2. Tone Policy: Completely transparent, proud, hacker-to-hacker, and entirely focused on what Yatharth can execute *for* them. Avoid any passive or submissive academic phrasing.
+3. No Artificial Metrics: Do not invent fake statistical outcomes (e.g., "I will save you exactly 42% on AWS"). Anchor the value entirely in systems engineering methodologies (indexing query paths, data isolation, caching layers, predictive visualization).
+4. Strict Word Limit: Keep the total 'drafted_dm' under 110 words. Punchy paragraph blocks scale better on mobile screens.
+5. Blacklisted Vocabulary: Under no circumstances use any of these words: "pleasure", "honored", "aspiring", "hope", "delve", "apologize", "sincerely", "opportunity", "passionate".
+
+Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
+[
+  {{
+    "name": "Lead Name",
+    "drafted_note": "A 280-char connection hook (no em dashes, no URLs)...",
+    "drafted_dm": "[Paragraph 1: Hi [Name], sharp technical/engineering question here]\\n\\n[Paragraph 2: I am a 3rd-year IT student at DTU (9.29 CGPA) who has built 15+ end-to-end systems from scratch, including [Project]. This interaction was researched, targeted, and delivered fully by an autonomous pipeline I engineered to identify high-value growth partnerships where I can deploy immediate engineering leverage.]\\n\\n[Paragraph 3: Let's run a risk-free trial. Bring me on for a 2-month summer internship; if my optimizations don't bring immediate utility to your runway, we drop the arrangement. Take a look at my resume, and let me know when you are open for a quick chat or call this week.\\n\\nHere is my resume: {resume_link}]"
+  }}
+]"""
+
 
 class GhostwriterAgent:
     def __init__(self):
@@ -159,26 +217,25 @@ class GhostwriterAgent:
             truncated = truncated[:last_space]
         return truncated + "..."
 
-    def run(self, leads: list, profile: dict, dry_run: bool = False) -> list:
-        console.print("\n[bold cyan]━━━ Phase 2: Ghostwriter (Bulk Processing) ━━━[/bold cyan]")
-        instructions = self._load_instructions()
-        console.print(f"[cyan]Prompt instructions v{instructions.get('version', 1)}[/cyan]")
+    def is_big_tech(self, lead: dict) -> bool:
+        """Classify if a lead belongs to a Big Tech/enterprise company or not."""
+        company = (lead.get("company") or "").lower()
+        title = (lead.get("title") or "").lower()
+        role = (lead.get("role") or "").lower()
+        
+        # Word boundary match using regex is safer to avoid false positives (e.g. metadata -> meta)
+        big_tech_pattern = r'\b(google|microsoft|amazon|apple|meta|uber|stripe|netflix|adobe|salesforce|flipkart|swiggy|zomato|atlassian)\b'
+        
+        if re.search(big_tech_pattern, company):
+            return True
+        if not company and (re.search(big_tech_pattern, title) or re.search(big_tech_pattern, role)):
+            return True
+        return False
 
-        if not leads:
-            return []
-
-        leads_payload = json.dumps(leads, indent=2)
-        prompt = BULK_PROMPT.format(
-            my_profile_json=json.dumps(profile, indent=2),
-            count=len(leads),
-            leads_payload=leads_payload,
-            resume_link=self.resume_link,
-        )
-
+    def _call_gemini_for_cohort(self, prompt: str, cohort_name: str, max_retries: int = 6) -> list:
+        """Calls Gemini API with retries and returns parsed drafted leads."""
         drafted = []
-        max_retries = 6   # generous retry budget for 503 spikes
-
-        with Progress(SpinnerColumn(), TextColumn("Gemini bulk drafting notes + DMs..."), console=console) as p:
+        with Progress(SpinnerColumn(), TextColumn(f"Gemini bulk drafting ({cohort_name})..."), console=console) as p:
             p.add_task("", total=None)
             for attempt in range(max_retries):
                 try:
@@ -204,7 +261,47 @@ class GhostwriterAgent:
                         time.sleep(wait_time)
                     else:
                         console.print(f"\n[red]❌ Gemini API failed after {max_retries} retries: {e}[/red]")
-                        return leads  # Return leads without notes rather than crash
+                        return []
+        return drafted
+
+    def run(self, leads: list, profile: dict, dry_run: bool = False) -> list:
+        console.print("\n[bold cyan]━━━ Phase 2: Ghostwriter (Bulk Processing) ━━━[/bold cyan]")
+        instructions = self._load_instructions()
+        console.print(f"[cyan]Prompt instructions v{instructions.get('version', 1)}[/cyan]")
+
+        if not leads:
+            return []
+
+        # Split leads into Big Tech vs. Startup/Medium companies
+        big_tech_leads = [l for l in leads if self.is_big_tech(l)]
+        startup_leads = [l for l in leads if not self.is_big_tech(l)]
+
+        drafted = []
+
+        # Process Big Tech Cohort
+        if big_tech_leads:
+            console.print(f"[cyan]Processing {len(big_tech_leads)} Big Tech leads...[/cyan]")
+            leads_payload_bt = json.dumps(big_tech_leads, indent=2)
+            prompt_bt = BIG_TECH_BULK_PROMPT.format(
+                my_profile_json=json.dumps(profile, indent=2),
+                count=len(big_tech_leads),
+                leads_payload=leads_payload_bt,
+                resume_link=self.resume_link,
+            )
+            drafted_bt = self._call_gemini_for_cohort(prompt_bt, "Big Tech")
+            drafted.extend(drafted_bt)
+
+        # Process Startup Cohort
+        if startup_leads:
+            console.print(f"[cyan]Processing {len(startup_leads)} Startup / Medium leads...[/cyan]")
+            leads_payload_su = json.dumps(startup_leads, indent=2)
+            prompt_su = STARTUP_BULK_PROMPT.format(
+                count=len(startup_leads),
+                leads_payload=leads_payload_su,
+                resume_link=self.resume_link,
+            )
+            drafted_su = self._call_gemini_for_cohort(prompt_su, "Startup/Medium")
+            drafted.extend(drafted_su)
 
 
         # Build lookup map: name -> {drafted_note, drafted_dm}
