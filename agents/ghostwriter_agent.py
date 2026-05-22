@@ -10,6 +10,7 @@ import json
 import os
 import re
 import time
+import math
 from pathlib import Path
 from typing import Optional
 
@@ -175,7 +176,7 @@ class GhostwriterAgent:
         )
 
         drafted = []
-        max_retries = 3
+        max_retries = 6   # generous retry budget for 503 spikes
 
         with Progress(SpinnerColumn(), TextColumn("Gemini bulk drafting notes + DMs..."), console=console) as p:
             p.add_task("", total=None)
@@ -185,13 +186,26 @@ class GhostwriterAgent:
                     drafted = self._extract_json(resp.text) or []
                     break
                 except Exception as e:
+                    err_str = str(e)
                     if attempt < max_retries - 1:
-                        wait_time = 15 * (attempt + 1)
-                        console.print(f"\n[yellow]⚠ Gemini overloaded. Retrying in {wait_time}s...[/yellow]")
+                        # Extract exact retry time if Gemini gives a 429 quota error
+                        m = re.search(r"retry in (\d+(?:\.\d+)?)s", err_str)
+                        if "429" in err_str and m:
+                            wait_time = math.ceil(float(m.group(1))) + 2
+                            console.print(f"\n[yellow]⚠ Gemini quota exceeded. Waiting {wait_time}s for reset...[/yellow]")
+                        elif "503" in err_str or "overload" in err_str.lower() or "unavailable" in err_str.lower() or "429" in err_str:
+                            # Scale wait: 15s, 30s, 60s, 90s, 120s across attempts
+                            wait_time = min(15 * (2 ** attempt), 120)
+                            console.print(f"\n[yellow]⚠ Gemini overloaded (attempt {attempt+1}/{max_retries}). Retrying in {wait_time}s...[/yellow]")
+                        else:
+                            console.print(f"\n[red]❌ Gemini API failed: {e}[/red]")
+                            break
+
                         time.sleep(wait_time)
                     else:
                         console.print(f"\n[red]❌ Gemini API failed after {max_retries} retries: {e}[/red]")
                         return leads  # Return leads without notes rather than crash
+
 
         # Build lookup map: name -> {drafted_note, drafted_dm}
         note_map = {}
