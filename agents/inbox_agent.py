@@ -388,19 +388,32 @@ class InboxAgent:
                 console.print(f"  [red]  ✘ Profile redirected to login/authwall. Skipping DM.[/red]")
                 return False
 
-            # Find the Message button (can be a button or an anchor tag)
+            # ── ISOLATE TOP CARD ─────────────────────────────────────────────────
+            # Prevent scanning the 'More profiles for you' sidebar which has its own 
+            # Message buttons (clicking these on 3rd-degree connections opens the Premium modal).
+            main_area = page.locator(
+                ".scaffold-layout__main .pv-top-card, "
+                "main .pv-top-card, "
+                ".scaffold-layout__main section.artdeco-card:first-of-type, "
+                "main section.artdeco-card:first-of-type"
+            ).first
+            
+            if not main_area.is_visible(timeout=500):
+                main_area = page.locator(".scaffold-layout__main").first
+                if not main_area.is_visible(timeout=500):
+                    main_area = page.locator("main")
+
+            # Find the Message button inside the isolated top card
             message_btn = None
             msg_selectors = [
-                'main a:has-text("Message")',
-                'main button:has-text("Message")',
+                'a:has-text("Message")',
+                'button:has-text("Message")',
                 'a:has(svg[id*="send-privately"])',
                 'button:has(svg[id*="send-privately"])',
-                '.pv-top-card a:has-text("Message")',
-                '.pv-top-card button:has-text("Message")',
             ]
             for selector in msg_selectors:
                 try:
-                    btns = page.locator(selector).all()
+                    btns = main_area.locator(selector).all()
                     for btn in btns:
                         if not btn.is_visible(timeout=500):
                             continue
