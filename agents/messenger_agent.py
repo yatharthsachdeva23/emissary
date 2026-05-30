@@ -272,6 +272,60 @@ class MessengerAgent:
 
         for char in note:
             textarea.type(char, delay=get_typing_delay())
+    def _verify_profile_criteria(self, page, name: str) -> bool:
+        """
+        Extract connection counts and location from the profile page DOM.
+        Returns False if connections < 500 OR if location is NOT in India.
+        Returns True if criteria met, or if we can't definitively determine (fails open).
+        """
+        try:
+            # The top card contains followers and connections
+            text = ""
+            for selector in ['.pv-top-card', 'main', 'body']:
+                try:
+                    el = page.locator(selector).first
+                    if el.is_visible(timeout=1000):
+                        text = el.inner_text().lower()
+                        if "connections" in text or "followers" in text:
+                            break
+                except Exception:
+                    continue
+            
+            if not text:
+                return True # Fail open if we can't read the page text
+
+            # ── Check 1: Location MUST be India ──────────────────────────────
+            # On the profile top card, LinkedIn always appends the country to the location.
+            # Example: "Faridabad, Haryana, India" or "Bengaluru, Karnataka, India"
+            if "india" not in text:
+                console.print(f"  [yellow]  ⚠ Profile location does not contain 'India'. Skipping.[/yellow]")
+                return False
+            
+            # ── Check 2: Connections MUST be 500+ ────────────────────────────
+            # Explicitly checking for the 500+ badge
+            if "500+ connections" in text or "500+\nconnections" in text:
+                return True
+                
+            import re
+            
+            # Look for an explicit connection count that is less than 500
+            # E.g., "400 connections", "257\nconnections", "0 connections"
+            match = re.search(r'([\d,]+)\s+connections?', text)
+            if match:
+                num_str = match.group(1).replace(',', '')
+                try:
+                    count = int(num_str)
+                    if count < 500:
+                        console.print(f"  [yellow]  ⚠ Profile has only {count} connections. Skipping (requires 500+).[/yellow]")
+                        return False
+                except ValueError:
+                    pass
+            
+            return True
+        except Exception as e:
+            console.print(f"  [dim]  ⚠ Could not verify connections for {name}: {e}[/dim]")
+            return True
+
     def _send_connection(self, page, lead: dict, ghost_run: bool = False) -> tuple[bool, str]:
         """
         Find and click the Connect button, handle the modal, and 'send'.
@@ -306,8 +360,22 @@ class MessengerAgent:
             # Sidebar cards are always rendered at x > 900px. This positional check
             # is viewport-based and immune to LinkedIn's obfuscated class names.
             # ─────────────────────────────────────────────────────────────────────
+            # ── ISOLATE TOP CARD ─────────────────────────────────────────────────
+            # Prevent scanning the 'More profiles for you' sidebar by strictly 
+            # isolating the top profile card element.
+            main_area = page.locator(
+                ".scaffold-layout__main .pv-top-card, "
+                "main .pv-top-card, "
+                ".scaffold-layout__main section.artdeco-card:first-of-type, "
+                "main section.artdeco-card:first-of-type"
+            ).first
+            
+            if not main_area.is_visible(timeout=500):
+                main_area = page.locator(".scaffold-layout__main").first
+                if not main_area.is_visible(timeout=500):
+                    main_area = page.locator("main")
+
             candidates = []
-            main_area = page.locator("main")
 
             # PATH 1: TYPE A — Direct custom-invite href or aria-label
             direct_btn = main_area.locator(
@@ -350,17 +418,11 @@ class MessengerAgent:
                     "button[aria-label='More'], "
                     "button[aria-label='More actions']"
                 )
-                all_more_btns = page.locator(more_selector).all()
+                # Search specifically in main_area to avoid sidebar More buttons
+                all_more_btns = main_area.locator(more_selector).all()
                 for more_btn in all_more_btns:
                     try:
                         if not more_btn.is_visible():
-                            continue
-                        # Reject sidebar More buttons using bounding-rect check
-                        rect = more_btn.evaluate(
-                            "el => { const r = el.getBoundingClientRect(); "
-                            "return {x: r.x, y: r.y}; }"
-                        )
-                        if rect and (rect.get("x", 9999) > 700 or rect.get("y", 9999) > 600):
                             continue
                         candidates.append((more_btn, "dropdown"))
                     except Exception:
@@ -575,10 +637,11 @@ class MessengerAgent:
                 return leads
 
             # ── Process leads in batches ─────────────────────────────────────
-            for batch_start in range(0, len(leads), self.batch_size):
-                batch = leads[batch_start: batch_start + self.batch_size]
-                batch_num = (batch_start // self.batch_size) + 1
-                console.print(f"\n[bold]Batch {batch_num} — {len(batch)} connections[/bold]")
+            try:
+                for batch_start in range(0, len(leads), self.batch_size):
+                    batch = leads[batch_start: batch_start + self.batch_size]
+                    batch_num = (batch_start // self.batch_size) + 1
+                    console.print(f"\n[bold]Batch {batch_num} — {len(batch)} connections[/bold]")
 
                 for i, lead in enumerate(batch):
                     try:
@@ -616,6 +679,18 @@ class MessengerAgent:
                             lead["status"] = "skipped_visit_failed"
                             self.skipped_count += 1
                             self.results.append(lead)
+                            continue
+
+                        # Verify criteria (must be 500+ connections and located in India)
+                        if not self._verify_profile_criteria(page, name):
+                            lead["status"] = "skipped_criteria_failed"
+                            self.skipped_count += 1
+                            self.results.append(lead)
+                            try:
+                                from utils.sheets import SheetsClient
+                                SheetsClient().update_status(url, "Skipped (Profile Criteria)")
+                            except Exception:
+                                pass
                             continue
 
                         if test_mode:
@@ -660,6 +735,9 @@ class MessengerAgent:
                 # Batch sleep (except after last batch)
                 if batch_start + self.batch_size < len(leads):
                     batch_sleep(self.batch_sleep_min, self.batch_sleep_max)
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Messenger interrupted by user. Stopping immediately and saving progress...[/yellow]")
+                # We return self.results so that main.py can log them!
 
             browser.close()
 

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from google import genai
 from dotenv import load_dotenv
+from utils.gemini_client import get_client_with_rotation, mark_key_exhausted
 from rich.console import Console
 from rich.panel import Panel
 
@@ -38,8 +39,7 @@ Return ONLY a valid JSON object in ```json ... ``` tags with the EXACT same sche
 
 class FeedbackAgent:
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY") or "dummy_key_for_testing"
-        self.client = genai.Client(api_key=api_key)
+        pass  # Gemini client obtained via key-rotation utility at call time
 
     def _load_instructions(self) -> dict:
         if INSTRUCTIONS_PATH.exists():
@@ -101,7 +101,8 @@ class FeedbackAgent:
         )
 
         try:
-            resp = self.client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+            client, key_label = get_client_with_rotation()
+            resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
             updated = self._extract_json(resp.text)
             if not updated:
                 console.print("[red]Failed to parse updated instructions[/red]")

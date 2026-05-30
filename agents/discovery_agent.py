@@ -19,6 +19,7 @@ from typing import Optional
 
 from google import genai
 from dotenv import load_dotenv
+from utils.gemini_client import get_client_with_rotation, mark_key_exhausted
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -139,8 +140,6 @@ Raw leads ({count} items):
 
 class DiscoveryAgent:
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY") or "dummy_key_for_testing"
-        self.client = genai.Client(api_key=api_key)
         self.serper_key = os.getenv("SERPER_API_KEY", "")
         self.daily_limit = int(os.getenv("DAILY_SEND_LIMIT", "20"))
 
@@ -165,31 +164,36 @@ class DiscoveryAgent:
             return []
 
     def _gemini_call(self, prompt: str, label: str = "Gemini") -> Optional[str]:
-        """Single Gemini call with retry on 503/overload/429."""
-        max_retries = 3
-        for attempt in range(max_retries):
+        """Single Gemini call with key rotation on 429, retry on 503/overload."""
+        max_retries_per_key = 3
+        for key_attempt in range(4):
             try:
-                resp = self.client.models.generate_content(
-                    model="gemini-2.5-flash", contents=prompt
-                )
-                return resp.text
-            except Exception as e:
-                err_str = str(e)
-                if attempt < max_retries - 1:
-                    match = re.search(r"retry in (\d+(?:\.\d+)?)s", err_str)
-                    if "429" in err_str and match:
-                        wait = math.ceil(float(match.group(1))) + 2
-                        console.print(f"[yellow]⚠ {label} quota exceeded. Waiting {wait}s...[/yellow]")
-                    elif "503" in err_str or "overload" in err_str.lower() or "unavailable" in err_str.lower() or "429" in err_str:
-                        wait = 15 * (attempt + 1)
-                        console.print(f"[yellow]⚠ {label} API busy. Retrying in {wait}s...[/yellow]")
+                client, key_label = get_client_with_rotation()
+            except RuntimeError as e:
+                console.print(f"[red]❌ {e}[/red]")
+                return None
+
+            for attempt in range(max_retries_per_key):
+                try:
+                    resp = client.models.generate_content(
+                        model="gemini-2.5-flash", contents=prompt
+                    )
+                    return resp.text
+                except Exception as e:
+                    err_str = str(e)
+                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                        console.print(f"[yellow]⚠ {label} {key_label} quota exceeded. Rotating key...[/yellow]")
+                        mark_key_exhausted()
+                        break  # try next key
+                    elif "503" in err_str or "overload" in err_str.lower() or "unavailable" in err_str.lower():
+                        match = re.search(r"retry in (\d+(?:\.\d+)?)s", err_str)
+                        wait = math.ceil(float(match.group(1))) + 2 if match else 15 * (attempt + 1)
+                        console.print(f"[yellow]⚠ {label} {key_label} busy. Retrying in {wait}s...[/yellow]")
+                        time.sleep(wait)
                     else:
                         console.print(f"[red]❌ {label} failed: {e}[/red]")
                         return None
-                    time.sleep(wait)
-                else:
-                    console.print(f"[red]❌ {label} failed after {max_retries} retries: {e}[/red]")
-                    return None
+        console.print(f"[red]❌ {label} — all Gemini keys exhausted.[/red]")
         return None
 
     def _extract_json(self, text: str) -> Optional[list]:

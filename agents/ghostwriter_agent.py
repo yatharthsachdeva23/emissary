@@ -16,6 +16,7 @@ from typing import Optional
 
 from google import genai
 from dotenv import load_dotenv
+from utils.gemini_client import get_client_with_rotation, mark_key_exhausted
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -143,33 +144,34 @@ THE 3-PARAGRAPH "ROI SALES PITCH" FRAMEWORK (drafted_dm):
 
 Paragraph 1: The Factual Engineering Hook (Domain-Specific & Real)
 - Address the lead by name. Start immediately with a sharp, technically accurate, and highly relevant engineering or product question targeting a structural bottleneck common to their specific domain. Do NOT use greetings (like "Hope you are well") or empty flattery.
-- Dynamically tailor this opening question based on the target role type:
-  * For AI/ML Intern Leads: Focus on multi-agent synchronization, unauthorized data exfiltration risks during third-party integrations, or runtime virtualization latency.
-  * For SDE / Backend Intern Leads: Focus on database query latency, nested O(N*N) looping strains, pipeline backpressure, or caching layer efficiency.
-  * For Full Stack Intern Leads: Focus on product-shipping blockages, rapid end-to-end prototyping speeds, or syncing relational application data from database to UI.
-  * For Product Management Intern Leads: Focus on reducing user onboarding friction, avoiding feature creep, or building predictive decision-support layers that anticipate system loads.
-  * For Forward Deployment Engineer Leads: Focus on rapid prototyping under extreme constraints, deployment failures in unrefined client environments, or engineering custom features from chaotic datasets.
-  * For Corporate Outreach & Leadership Leads: Focus on scaling growth pipelines, managing large cross-functional teams, or locking down external stakeholder agreements.
+- Dynamically tailor this opening question based on the target role type, and expand it with 1-2 lines detailing a real system design trade-off or challenge to demonstrate deep technical understanding:
+  * For AI/ML Intern Leads: Focus on multi-agent synchronization, unauthorized data exfiltration risks during third-party integrations, or runtime virtualization latency. Elaborate on the complexity of running untrusted third-party agent code securely.
+  * For SDE / Backend Intern Leads: Focus on database query latency, nested O(N*N) looping strains, pipeline backpressure, or caching layer efficiency. Elaborate on the difficulty of maintaining low-latency lookups under high write-concurrency.
+  * For Full Stack Intern Leads: Focus on rapid end-to-end prototyping, product shipping bottlenecks, or synchronizing relational data in real time. Elaborate on shipping high-fidelity features cleanly from database schema to UI representation without technical debt.
+  * For Product Management Intern Leads: Focus on reducing user onboarding friction, avoiding feature creep, or building predictive decision-support dashboards. Elaborate on balancing immediate user value with backend scale feasibility.
+  * For Forward Deployment Engineer Leads: Focus on rapid prototyping under extreme constraints, deployment failures in unrefined client environments, or custom integrations. Elaborate on handling legacy enterprise data pipelines with robust parser design.
+  * For Corporate Outreach & Leadership Leads: Focus on scaling developer velocity, reducing infrastructure costs, or managing complex integration timelines.
 
 Paragraph 2: The Authority & Automation Flex (The Live Demo)
-- Connect their engineering bottleneck to Yatharth's explicit credentials: "I am a 3rd-year IT student at DTU (9.29 CGPA) who has built 15+ end-to-end systems from scratch, including [Mention a highly relevant project of Yatharth's that solves the Paragraph 1 issue]."
-- Project Matching Logic:
-  * Match AI/ML to 'Sentinel Mesh' (containerized WASM sandboxes and mutual blindness protocols).
-  * Match SDE/Backend/Full-Stack to 'Global Catalogue Registry' (optimized search complexity from N*N to N+N, Redis caching, slashed latency) or 'NFPC Fraud System' (Polars, LightGBM, behavioral feature engineering).
-  * Match Product Management to 'Paytm Digital Udhaar' (low-friction ecosystem design capturing organic user habits) or 'AIRS UIDAI Dashboard' (predictive visualization moving past static reporting).
-  * Match Forward Deployment / Leadership to his ONDC Hackathon win at IIT Delhi (1st out of 400+ teams) or leading corporate outreach pipelines as LFC Corporate Coordinator.
-- Proudly drop the mic-drop reveal: State explicitly that this entire message interaction was researched, targeted, and delivered fully by an autonomous pipeline Yatharth engineered to identify high-value growth partnerships where he can deploy immediate engineering leverage.
+- Connect their engineering bottleneck to Yatharth's credentials: "I am a 3rd-year IT student at DTU (9.29 CGPA) who has built 15+ end-to-end systems from scratch, including [Mention a highly relevant project of Yatharth's that solves the Paragraph 1 issue, with a brief sentence on its technical design]."
+- Reveal the "magic trick" using this EXACT process and phrasing: "I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous multi-agent pipeline I built to demonstrate my system design capabilities live." (Focus on the result and process of live demoing capabilities rather than tool technicalities).
 
-Paragraph 3: The Risk-Free Trial & Assumed Close (Yes-or-Yes)
-- Treat hiring like an enterprise software trial to lower risk friction. Challenge the founder/CTO to bring him on for a 2-month summer internship validation phase. State clearly that if his backend code or system optimizations do not bring direct, quantifiable utility to their infrastructure and development pipelines, they can terminate the arrangement cleanly.
-- End with a strong, confident, assumed close that directs them toward calendar coordination: "Take a look at my resume, and let me know when you are open for a quick chat or call this week."
+Paragraph 3: The Valuation Trial Close (Position as a Value Proposition, Not Requesting an Internship)
+- Lower friction with this EXACT positioning and phrasing: "Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI / SDE / Full-Stack / Product Management] Intern this summer; if my zero-trust architectures and pipeline microservices do not provide immediate technical leverage to your runtime environment, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week."
+- Dynamic Role Mapping (select the exact match):
+  * For AI/ML leads: "AI Intern"
+  * For SDE/Backend leads: "SDE Intern"
+  * For Full Stack leads: "Full-Stack Intern"
+  * For Product Management leads: "Product Management Intern"
+  * For Leadership/Forward Deployment/others: "Software Engineering Intern"
+- Under no circumstances ask for a "2-month internship" directly or beg/request a favor. Present this as a value deal where you deploy leverage.
 - The absolute final line of this paragraph MUST strictly be: "Here is my resume: {resume_link}".
 
 CRITICAL GENERATION CONSTRAINTS:
 1. Paragraph Separation: You MUST separate the three distinct paragraphs using double newline string escapes ("\\n\\n") directly inside the JSON string value so it formats perfectly in the LinkedIn message overlay.
 2. Tone Policy: Completely transparent, proud, hacker-to-hacker, and entirely focused on what Yatharth can execute *for* them. Avoid any passive or submissive academic phrasing.
 3. No Artificial Metrics: Do not invent fake statistical outcomes (e.g., "I will save you exactly 42% on AWS"). Anchor the value entirely in systems engineering methodologies (indexing query paths, data isolation, caching layers, predictive visualization).
-4. Strict Word Limit: Keep the total 'drafted_dm' under 110 words. Punchy paragraph blocks scale better on mobile screens.
+4. Word Limit: Aim for a total length of 140 to 150 words. Ensure it is not too short (under 130 words) or too long (over 160 words). This word count provides enough room to build real technical depth and intrigue.
 5. Blacklisted Vocabulary: Under no circumstances use any of these words: "pleasure", "honored", "aspiring", "hope", "delve", "apologize", "sincerely", "opportunity", "passionate".
 
 Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
@@ -177,15 +179,13 @@ Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
   {{
     "name": "Lead Name",
     "drafted_note": "A 280-char connection hook (no em dashes, no URLs)...",
-    "drafted_dm": "[Paragraph 1: Hi [Name], sharp technical/engineering question here]\\n\\n[Paragraph 2: I am a 3rd-year IT student at DTU (9.29 CGPA) who has built 15+ end-to-end systems from scratch, including [Project]. This interaction was researched, targeted, and delivered fully by an autonomous pipeline I engineered to identify high-value growth partnerships where I can deploy immediate engineering leverage.]\\n\\n[Paragraph 3: Let's run a risk-free trial. Bring me on for a 2-month summer internship; if my optimizations don't bring immediate utility to your runway, we drop the arrangement. Take a look at my resume, and let me know when you are open for a quick chat or call this week.\\n\\nHere is my resume: {resume_link}]"
+    "drafted_dm": "[Paragraph 1: Hi [Name], sharp technical/engineering question here]\\n\\n[Paragraph 2: I am a 3rd-year IT student at DTU (9.29 CGPA) who has built 15+ end-to-end systems from scratch, including [Project]. I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous multi-agent pipeline I built to demonstrate my system design capabilities live.]\\n\\n[Paragraph 3: Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI / SDE / Full-Stack / Product Management] Intern this summer; if my zero-trust architectures and pipeline microservices do not provide immediate technical leverage to your runtime environment, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week.\\n\\nHere is my resume: {resume_link}]"
   }}
 ]"""
 
 
 class GhostwriterAgent:
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY") or "dummy_key_for_testing"
-        self.client = genai.Client(api_key=api_key)
         self.resume_link = os.getenv("RESUME_LINK", "[ADD_YOUR_RESUME_LINK_HERE]")
 
     def _load_instructions(self) -> dict:
@@ -232,36 +232,42 @@ class GhostwriterAgent:
             return True
         return False
 
-    def _call_gemini_for_cohort(self, prompt: str, cohort_name: str, max_retries: int = 6) -> list:
-        """Calls Gemini API with retries and returns parsed drafted leads."""
+    def _call_gemini_for_cohort(self, prompt: str, cohort_name: str, max_retries_per_key: int = 3) -> list:
+        """Calls Gemini API with automatic key rotation on quota errors."""
         drafted = []
         with Progress(SpinnerColumn(), TextColumn(f"Gemini bulk drafting ({cohort_name})..."), console=console) as p:
             p.add_task("", total=None)
-            for attempt in range(max_retries):
+            # Try up to 4 keys (one rotation attempt per key)
+            for key_attempt in range(4):
                 try:
-                    resp = self.client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-                    drafted = self._extract_json(resp.text) or []
-                    break
-                except Exception as e:
-                    err_str = str(e)
-                    if attempt < max_retries - 1:
-                        # Extract exact retry time if Gemini gives a 429 quota error
-                        m = re.search(r"retry in (\d+(?:\.\d+)?)s", err_str)
-                        if "429" in err_str and m:
-                            wait_time = math.ceil(float(m.group(1))) + 2
-                            console.print(f"\n[yellow]⚠ Gemini quota exceeded. Waiting {wait_time}s for reset...[/yellow]")
-                        elif "503" in err_str or "overload" in err_str.lower() or "unavailable" in err_str.lower() or "429" in err_str:
-                            # Scale wait: 15s, 30s, 60s, 90s, 120s across attempts
-                            wait_time = min(15 * (2 ** attempt), 120)
-                            console.print(f"\n[yellow]⚠ Gemini overloaded (attempt {attempt+1}/{max_retries}). Retrying in {wait_time}s...[/yellow]")
-                        else:
-                            console.print(f"\n[red]❌ Gemini API failed: {e}[/red]")
+                    client, key_label = get_client_with_rotation()
+                    for attempt in range(max_retries_per_key):
+                        try:
+                            resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+                            drafted = self._extract_json(resp.text) or []
+                            return drafted
+                        except Exception as e:
+                            err_str = str(e)
+                            # Quota exceeded → rotate key
+                            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                                console.print(f"\n[yellow]⚠ Gemini {key_label} quota exceeded. Rotating key...[/yellow]")
+                            # Transient overload → wait and retry same key
+                            elif "503" in err_str or "overload" in err_str.lower() or "unavailable" in err_str.lower():
+                                m = re.search(r"retry in (\d+(?:\.\d+)?)s", err_str)
+                                wait_time = math.ceil(float(m.group(1))) + 2 if m else min(15 * (2 ** attempt), 90)
+                                console.print(f"\n[yellow]⚠ Gemini {key_label} overloaded (attempt {attempt+1}/{max_retries_per_key}). Retrying in {wait_time}s...[/yellow]")
+                                time.sleep(wait_time)
+                                continue
+                            else:
+                                console.print(f"\n[red]❌ Gemini API failed: {e}[/red]")
+                                return []
+                            # 429 → mark exhausted and break to try next key
+                            mark_key_exhausted()
                             break
-
-                        time.sleep(wait_time)
-                    else:
-                        console.print(f"\n[red]❌ Gemini API failed after {max_retries} retries: {e}[/red]")
-                        return []
+                except RuntimeError as e:
+                    console.print(f"\n[red]❌ {e}[/red]")
+                    return []
+        console.print(f"\n[red]❌ All Gemini keys exhausted for cohort '{cohort_name}'.[/red]")
         return drafted
 
     def run(self, leads: list, profile: dict, dry_run: bool = False) -> list:

@@ -18,6 +18,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from utils.gemini_client import has_gemini_keys
 
 # ── Make sure project root is on the path ────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).parent))
@@ -81,10 +82,13 @@ def parse_args() -> dict:
 
 def check_env(dry_run: bool = False) -> bool:
     """Verify critical environment variables."""
-    key = os.getenv("GEMINI_API_KEY", "")
-    if not key or key.startswith("your_") or key == "mock_key_test":
-        if dry_run:
-            console.print("[yellow]GEMINI_API_KEY not set — dry-run will use mock scoring[/yellow]")
+    # 1. Verification
+    if not has_gemini_keys():
+        if not dry_run:
+            console.print("[bold red]No GEMINI_API_KEY_1 (or GEMINI_API_KEY) set in .env — see README.md[/bold red]")
+            sys.exit(1)
+        else:
+            console.print("[yellow]No Gemini keys set — dry-run will use mock scoring[/yellow]")
             return True  # allow dry-run without a real key
         console.print("[bold red]GEMINI_API_KEY not set in .env — see README.md[/bold red]")
         return False

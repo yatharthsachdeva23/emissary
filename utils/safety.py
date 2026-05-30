@@ -12,7 +12,7 @@ from rich.console import Console
 console = Console()
 
 # Absolute hard caps — never exceed these
-ABSOLUTE_DAILY_MAX = 40
+ABSOLUTE_DAILY_MAX = 50
 ABSOLUTE_BATCH_MAX = 5
 
 

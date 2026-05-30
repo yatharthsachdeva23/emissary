@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from google import genai
+from utils.gemini_client import get_client_with_rotation
 from google.genai import types
 from dotenv import load_dotenv
 from rich.console import Console
@@ -61,8 +62,7 @@ block wrapped in ```json ... ``` tags. Nothing else."""
 
 class PersonaAgent:
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY") or "dummy_key_for_testing"
-        self.client = genai.Client(api_key=api_key)
+        pass  # Setup happens per-call in extract_profile_info
         self.history = []
         self.resume_text = ""
         self.resume_link = ""
@@ -78,8 +78,9 @@ class PersonaAgent:
         base_delay = 5
         for attempt in range(max_retries):
             try:
-                response = self.client.models.generate_content(
-                    model="gemini-2.5-flash",
+                client, key_label = get_client_with_rotation()
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
                     contents=self.history,
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_PROMPT,

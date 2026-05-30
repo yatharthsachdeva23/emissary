@@ -11,6 +11,7 @@ Usage:
 import sys
 import os
 from pathlib import Path
+from utils.gemini_client import has_gemini_keys
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -29,8 +30,11 @@ PROFILE_PATH = Path("data/my_profile.json")
 def check_env():
     """Verify required environment variables are set."""
     missing = []
-    for key in ["GEMINI_API_KEY", "SERPER_API_KEY", "GOOGLE_SHEET_ID"]:
-        if not os.getenv(key) or os.getenv(key, "").startswith("your_"):
+    if not has_gemini_keys():
+        missing.append("GEMINI_API_KEY_1 (or GEMINI_API_KEY)")
+    for key in ["SERPER_API_KEY", "GOOGLE_SHEET_ID"]:
+        val = os.getenv(key, "")
+        if not val or val.startswith("your_"):
             missing.append(key)
     
     if missing:
@@ -41,7 +45,7 @@ def check_env():
             "\n[yellow]Copy .env.example to .env and fill in your API keys.[/yellow]\n"
             "See README.md for instructions on getting each key.\n"
         )
-        if "GEMINI_API_KEY" in missing:
+        if "GEMINI_API_KEY_1 (or GEMINI_API_KEY)" in missing:
             sys.exit(1)
         else:
             console.print("[yellow]Continuing with Gemini only (other keys needed for full pipeline).[/yellow]\n")

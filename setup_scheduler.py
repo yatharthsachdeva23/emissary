@@ -35,11 +35,11 @@ def get_task_xml() -> str:
     return f"""<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>Emissary — Autonomous LinkedIn cold outreach pipeline. Runs daily at 10:00 AM.</Description>
+    <Description>Emissary — Autonomous LinkedIn cold outreach pipeline. Runs daily at 9:00 AM.</Description>
   </RegistrationInfo>
   <Triggers>
     <CalendarTrigger>
-      <StartBoundary>2026-01-01T10:00:00</StartBoundary>
+      <StartBoundary>2026-01-01T09:00:00</StartBoundary>
       <Enabled>true</Enabled>
       <ScheduleByWeek>
         <WeeksInterval>1</WeeksInterval>
@@ -109,7 +109,7 @@ def create_task() -> bool:
             console.print(Panel(
                 f"[green]✅ Task created successfully![/green]\n\n"
                 f"  Task name  : [bold]{TASK_NAME}[/bold]\n"
-                f"  Runs at    : [bold]10:00 AM — Every day[/bold]\n"
+                f"  Runs at    : [bold]9:00 AM — Every day[/bold]\n"
                 f"  Script     : {MAIN_SCRIPT}\n"
                 f"  Python     : {PYTHON_EXE}\n"
                 f"  Log file   : {LOG_FILE}\n\n"
@@ -168,7 +168,7 @@ def main():
             f"This will create a daily Windows Task Scheduler task that runs:\n"
             f"  [bold]{PYTHON_EXE}[/bold]\n"
             f"  [dim]{MAIN_SCRIPT}[/dim]\n\n"
-            f"Every day at [bold]10:00 AM[/bold] (when your PC is on and connected to internet).",
+            f"Every day at [bold]9:00 AM[/bold] (when your PC is on and connected to internet).",
             border_style="cyan",
         ))
 

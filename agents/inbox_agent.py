@@ -352,9 +352,18 @@ class InboxAgent:
                     url = self._linkedin_base + url[len(prefix):]
                     break
 
+            # (Moved chat panel closing logic to after page load)
+
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            except Exception:
+                pass # Proceed anyway if page times out on background scripts
+            self._human_sleep(3, 5)
+
             # ── Close any lingering LinkedIn chat panels from previous DMs ──────
-            # After each send, LinkedIn leaves persistent chat bubbles at the bottom.
+            # After each send, or upon page load, LinkedIn might open chat bubbles.
             # These stack up and push the new compose box out of the viewport.
+            # It's crucial to do this AFTER page load/hydration.
             try:
                 close_btns = page.locator(
                     "button[aria-label='Close your conversation'], "
@@ -372,12 +381,6 @@ class InboxAgent:
             except Exception:
                 pass
             # ─────────────────────────────────────────────────────────────────────
-
-            try:
-                page.goto(url, wait_until="domcontentloaded", timeout=45000)
-            except Exception:
-                pass # Proceed anyway if page times out on background scripts
-            self._human_sleep(3, 5)
 
             # Guard: if we landed on login/authwall, skip this lead
             current_url = page.url
@@ -397,12 +400,22 @@ class InboxAgent:
             ]
             for selector in msg_selectors:
                 try:
-                    btn = page.locator(selector).first
-                    if btn.is_visible(timeout=3000):
+                    btns = page.locator(selector).all()
+                    for btn in btns:
+                        if not btn.is_visible(timeout=500):
+                            continue
+                        
+                        # Guard against clicking Premium ad banners that happen to contain the word "Message"
+                        btn_text = btn.inner_text().lower()
+                        if "premium" in btn_text or "try" in btn_text or "₹" in btn_text or "free" in btn_text:
+                            continue
+                            
                         message_btn = btn
                         break
                 except Exception:
                     continue
+                if message_btn:
+                    break
 
             if not message_btn:
                 console.print(f"  [yellow]  ⚠ Message button not found for {name}[/yellow]")
@@ -412,7 +425,8 @@ class InboxAgent:
             page.evaluate("window.scrollBy(0, -100)")
             page.wait_for_timeout(400)
             message_btn.click()
-            self._human_sleep(2, 4)
+            # Wait longer for the new chat box to fully load and take focus
+            self._human_sleep(4, 6)
 
             # Wait for the message compose box
             compose_box = None
@@ -452,6 +466,9 @@ class InboxAgent:
             # Scroll the compose box into view before interacting.
             compose_box.scroll_into_view_if_needed()
             page.wait_for_timeout(400)
+
+            # Extra slight wait to ensure the chat box React state is fully initialized
+            self._human_sleep(1.5, 3.0)
 
             # Focus the box using both click and JS focus.
             # Must focus BEFORE typing so keystrokes go to the right element.
