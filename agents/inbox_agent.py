@@ -403,13 +403,19 @@ class InboxAgent:
                 if not main_area.is_visible(timeout=500):
                     main_area = page.locator("main")
 
-            # Find the Message button inside the isolated top card
+            # Find the Message button inside the isolated top card using STRICT selectors
             message_btn = None
             msg_selectors = [
-                'a:has-text("Message")',
-                'button:has-text("Message")',
-                'a:has(svg[id*="send-privately"])',
-                'button:has(svg[id*="send-privately"])',
+                # Strict text matches (button or a tag with exact text 'Message' or containing a span with exact text)
+                'button:text-is("Message")',
+                'a:text-is("Message")',
+                'button:has(span:text-is("Message"))',
+                'a:has(span:text-is("Message"))',
+                # Explicit aria-labels used by LinkedIn for the profile message button
+                'button[aria-label^="Message "]',
+                'a[aria-label^="Message "]',
+                'button[aria-label^="Send a message to"]',
+                'a[aria-label^="Send a message to"]'
             ]
             for selector in msg_selectors:
                 try:
@@ -418,11 +424,26 @@ class InboxAgent:
                         if not btn.is_visible(timeout=500):
                             continue
                         
-                        # Guard against clicking Premium ad banners that happen to contain the word "Message"
+                        # 1. Guard against clicking Premium ad banners
                         btn_text = btn.inner_text().lower()
                         if "premium" in btn_text or "try" in btn_text or "₹" in btn_text or "free" in btn_text:
                             continue
                             
+                        # 2. Guard against 'Message with Premium' aria-labels
+                        aria = (btn.get_attribute("aria-label") or "").lower()
+                        if "premium" in aria:
+                            continue
+                            
+                        # 3. Guard against Sidebar buttons (x coordinate check)
+                        # The main profile column is always on the left (x < 700px).
+                        # Sidebar buttons (More profiles for you) are on the right (x > 900px).
+                        rect = btn.evaluate(
+                            "el => { const r = el.getBoundingClientRect(); "
+                            "return {x: r.x}; }"
+                        )
+                        if rect and rect.get("x", 9999) > 700:
+                            continue
+
                         message_btn = btn
                         break
                 except Exception:
