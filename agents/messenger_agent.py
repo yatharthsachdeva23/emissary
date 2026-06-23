@@ -643,126 +643,126 @@ class MessengerAgent:
                     batch_num = (batch_start // self.batch_size) + 1
                     console.print(f"\n[bold]Batch {batch_num} — {len(batch)} connections[/bold]")
 
-                for i, lead in enumerate(batch):
-                    try:
-                        raw_name = lead.get("name", "Unknown")
-                        # Sanitize name: remove non-printable/combining characters
-                        name = "".join(c for c in raw_name if c.isprintable())
-                        name = re.sub(r'[^\x00-\x7F]+', ' ', name).strip()
-                        
-                        url = lead.get("linkedin_url", "")
+                    for i, lead in enumerate(batch):
+                        try:
+                            raw_name = lead.get("name", "Unknown")
+                            # Sanitize name: remove non-printable/combining characters
+                            name = "".join(c for c in raw_name if c.isprintable())
+                            name = re.sub(r'[^\x00-\x7F]+', ' ', name).strip()
+                            
+                            url = lead.get("linkedin_url", "")
 
-                        # Check if already processed in this or a previous run
-                        if url:
-                            try:
-                                from agents.discovery_agent import DiscoveryAgent
-                                seen = DiscoveryAgent()._load_seen_profiles()
-                                if url in seen:
-                                    console.print(f"  [dim]  - Already processed/contacted: {name}. Skipping.[/dim]")
-                                    lead["status"] = "already_processed"
-                                    self.results.append(lead)
-                                    continue
-                            except Exception:
-                                pass
+                            # Check if already processed in this or a previous run
+                            if url:
+                                try:
+                                    from agents.discovery_agent import DiscoveryAgent
+                                    seen = DiscoveryAgent()._load_seen_profiles()
+                                    if url in seen:
+                                        console.print(f"  [dim]  - Already processed/contacted: {name}. Skipping.[/dim]")
+                                        lead["status"] = "already_processed"
+                                        self.results.append(lead)
+                                        continue
+                                except Exception:
+                                    pass
 
-                        console.print(f"\n  [{self.sent_count + 1}/{len(leads)}] {name} @ {lead.get('company', '?')} ({url})")
+                            console.print(f"\n  [{self.sent_count + 1}/{len(leads)}] {name} @ {lead.get('company', '?')} ({url})")
 
-                        if not url:
-                            console.print(f"  [yellow]  ⚠ No URL for {name} — skipping[/yellow]")
-                            lead["status"] = "skipped_no_url"
-                            self.skipped_count += 1
-                            self.results.append(lead)
-                            continue
+                            if not url:
+                                console.print(f"  [yellow]  ⚠ No URL for {name} — skipping[/yellow]")
+                                lead["status"] = "skipped_no_url"
+                                self.skipped_count += 1
+                                self.results.append(lead)
+                                continue
 
-                        # Visit profile
-                        visited = self._visit_profile(page, url)
-                        if not visited:
-                            # Check if this was an abort condition
-                            should_abort, reason = check_abort_conditions(page)
-                            if should_abort:
-                                console.print(f"[bold red]\n🚨 ABORT: {reason}[/bold red]")
-                                notify_abort(reason)
-                                # Mark remaining as not_sent
-                                for remaining in leads[batch_start + i:]:
-                                    remaining["status"] = "aborted"
-                                browser.close()
-                                return leads
+                            # Visit profile
+                            visited = self._visit_profile(page, url)
+                            if not visited:
+                                # Check if this was an abort condition
+                                should_abort, reason = check_abort_conditions(page)
+                                if should_abort:
+                                    console.print(f"[bold red]\n🚨 ABORT: {reason}[/bold red]")
+                                    notify_abort(reason)
+                                    # Mark remaining as not_sent
+                                    for remaining in leads[batch_start + i:]:
+                                        remaining["status"] = "aborted"
+                                    browser.close()
+                                    return leads
 
-                            console.print(f"  [yellow]  ⚠ Skipped: Visit failed for {name}[/yellow]")
-                            lead["status"] = "skipped_visit_failed"
-                            self.skipped_count += 1
-                            self.results.append(lead)
-                            try:
-                                from agents.discovery_agent import DiscoveryAgent
-                                DiscoveryAgent().mark_contacted(url)
-                            except Exception:
-                                pass
-                            continue
+                                console.print(f"  [yellow]  ⚠ Skipped: Visit failed for {name}[/yellow]")
+                                lead["status"] = "skipped_visit_failed"
+                                self.skipped_count += 1
+                                self.results.append(lead)
+                                try:
+                                    from agents.discovery_agent import DiscoveryAgent
+                                    DiscoveryAgent().mark_contacted(url)
+                                except Exception:
+                                    pass
+                                continue
 
-                        # Verify criteria (must be 500+ connections and located in India)
-                        if not self._verify_profile_criteria(page, name):
-                            lead["status"] = "skipped_criteria_failed"
-                            self.skipped_count += 1
-                            self.results.append(lead)
-                            try:
-                                from utils.sheets import SheetsClient
-                                SheetsClient().update_status(url, "Skipped (Profile Criteria)")
-                                from agents.discovery_agent import DiscoveryAgent
-                                DiscoveryAgent().mark_contacted(url)
-                            except Exception:
-                                pass
-                            continue
+                            # Verify criteria (must be 500+ connections and located in India)
+                            if not self._verify_profile_criteria(page, name):
+                                lead["status"] = "skipped_criteria_failed"
+                                self.skipped_count += 1
+                                self.results.append(lead)
+                                try:
+                                    from utils.sheets import SheetsClient
+                                    SheetsClient().update_status(url, "Skipped (Profile Criteria)")
+                                    from agents.discovery_agent import DiscoveryAgent
+                                    DiscoveryAgent().mark_contacted(url)
+                                except Exception:
+                                    pass
+                                continue
 
-                        if test_mode:
-                            console.print(f"  [cyan]  TEST: Visited profile, NOT sending.[/cyan]")
-                            lead["status"] = "test_visited"
-                            self.results.append(lead)
-                            human_sleep(2, 4)
-                            continue
+                            if test_mode:
+                                console.print(f"  [cyan]  TEST: Visited profile, NOT sending.[/cyan]")
+                                lead["status"] = "test_visited"
+                                self.results.append(lead)
+                                human_sleep(2, 4)
+                                continue
 
-                        # Send blank connection
-                        success, status = self._send_connection(page, lead, ghost_run=ghost_run)
+                            # Send blank connection
+                            success, status = self._send_connection(page, lead, ghost_run=ghost_run)
 
-                        if success:
-                            self.sent_count += 1
-                            lead["status"] = "Blank Sent"
-                            lead["sent_at"] = datetime.now().isoformat()
-                            console.print(f"  [green]  ✓ Blank request sent![/green]")
-                            # Log immediately to sheet so we never lose a send
-                            try:
-                                from utils.sheets import SheetsClient
-                                SheetsClient().update_status(lead.get("linkedin_url", ""), "Blank Sent")
-                                from agents.discovery_agent import DiscoveryAgent
-                                DiscoveryAgent().mark_contacted(lead.get("linkedin_url", ""))
-                            except Exception:
-                                pass
-                        else:
-                            self.skipped_count += 1
-                            lead["status"] = status
-                            console.print(f"  [yellow]  ⚠ Skipped: {status}[/yellow]")
-                            try:
-                                if lead.get("linkedin_url"):
+                            if success:
+                                self.sent_count += 1
+                                lead["status"] = "Blank Sent"
+                                lead["sent_at"] = datetime.now().isoformat()
+                                console.print(f"  [green]  ✓ Blank request sent![/green]")
+                                # Log immediately to sheet so we never lose a send
+                                try:
+                                    from utils.sheets import SheetsClient
+                                    SheetsClient().update_status(lead.get("linkedin_url", ""), "Blank Sent")
                                     from agents.discovery_agent import DiscoveryAgent
                                     DiscoveryAgent().mark_contacted(lead.get("linkedin_url", ""))
-                            except Exception:
-                                pass
+                                except Exception:
+                                    pass
+                            else:
+                                self.skipped_count += 1
+                                lead["status"] = status
+                                console.print(f"  [yellow]  ⚠ Skipped: {status}[/yellow]")
+                                try:
+                                    if lead.get("linkedin_url"):
+                                        from agents.discovery_agent import DiscoveryAgent
+                                        DiscoveryAgent().mark_contacted(lead.get("linkedin_url", ""))
+                                    except Exception:
+                                        pass
 
-                        self.results.append(lead)
+                            self.results.append(lead)
 
-                        # Inter-connection wait (shorter than batch sleep)
-                        if i < len(batch) - 1:
-                            human_sleep(8, 20, "Between connections")
+                            # Inter-connection wait (shorter than batch sleep)
+                            if i < len(batch) - 1:
+                                human_sleep(8, 20, "Between connections")
 
-                    except Exception as e:
-                        console.print(f"  [red]  ⚠ CRITICAL ERROR on {lead.get('name', 'Unknown')}: {e}[/red]")
-                        lead["status"] = "critical_error"
-                        self.skipped_count += 1
-                        self.results.append(lead)
-                        continue
+                        except Exception as e:
+                            console.print(f"  [red]  ⚠ CRITICAL ERROR on {lead.get('name', 'Unknown')}: {e}[/red]")
+                            lead["status"] = "critical_error"
+                            self.skipped_count += 1
+                            self.results.append(lead)
+                            continue
 
-                # Batch sleep (except after last batch)
-                if batch_start + self.batch_size < len(leads):
-                    batch_sleep(self.batch_sleep_min, self.batch_sleep_max)
+                    # Batch sleep (except after last batch)
+                    if batch_start + self.batch_size < len(leads):
+                        batch_sleep(self.batch_sleep_min, self.batch_sleep_max)
             except KeyboardInterrupt:
                 console.print("\n[yellow]Messenger interrupted by user. Stopping immediately and saving progress...[/yellow]")
                 # We return self.results so that main.py can log them!
