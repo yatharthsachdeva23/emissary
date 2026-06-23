@@ -171,13 +171,13 @@ def main():
             console.print("[dim]Skipping feedback loop[/dim]")
 
         # ── Step 2: Inbox Agent (The Closer) ────────────────────────
-        if not flags["dry_run"] and not flags["skip_send"]:
+        if not flags["dry_run"] and not flags["skip_send"] and not flags.get("resume"):
             from agents.inbox_agent import InboxAgent
             inbox = InboxAgent()
             inbox_summary = inbox.run(ghost_run=flags["ghost_run"])
             run_summary["dms_sent"] = inbox_summary.get("dm_sent", 0)
         else:
-            console.print("[dim]Skipping Inbox Agent (dry-run or skip-send)[/dim]")
+            console.print("[dim]Skipping Inbox Agent (dry-run, skip-send, or resume)[/dim]")
 
         # ── Step 3 & 4: Discovery & Ghostwriter (or Resume) ────────────
         if flags.get("resume"):
