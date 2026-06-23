@@ -1,8 +1,4 @@
-"""
-Google Sheets CRM — Emissary
-Read/write leads, statuses, and feedback to the central Google Sheet.
-"""
-
+from __future__ import annotations
 import json
 import os
 from datetime import datetime
