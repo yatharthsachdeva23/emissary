@@ -744,8 +744,8 @@ class MessengerAgent:
                                     if lead.get("linkedin_url"):
                                         from agents.discovery_agent import DiscoveryAgent
                                         DiscoveryAgent().mark_contacted(lead.get("linkedin_url", ""))
-                                    except Exception:
-                                        pass
+                                except Exception:
+                                    pass
 
                             self.results.append(lead)
 
