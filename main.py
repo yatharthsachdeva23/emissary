@@ -236,13 +236,16 @@ def main():
                     except Exception as e:
                         console.print(f"[yellow]Sheet logging error: {e}[/yellow]")
 
-                # Mark BOTH sent and skipped leads as locally seen so we never try them again
+                # Mark BOTH sent and skipped leads as locally seen so we never try them again (only if actually attempted)
                 try:
                     from agents.discovery_agent import DiscoveryAgent as _DA
                     d_agent = _DA()
-                    for lead in sent + skipped:
-                        if lead.get("linkedin_url"):
-                            d_agent.mark_contacted(lead["linkedin_url"])
+                    for lead in results:
+                        status = lead.get("status")
+                        # Only mark contacted if we actually processed/attempted them
+                        if status in ("Blank Sent", "ghost_sent", "skipped_no_url", "skipped_visit_failed", "skipped_criteria_failed", "test_visited"):
+                            if lead.get("linkedin_url"):
+                                d_agent.mark_contacted(lead["linkedin_url"])
                 except Exception as e:
                     console.print(f"[yellow]Failed to mark seen profiles: {e}[/yellow]")
 
