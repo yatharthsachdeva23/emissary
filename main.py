@@ -77,6 +77,7 @@ def parse_args() -> dict:
         "skip_feedback":  "--skip-feedback" in args,
         "skip_send":      "--skip-send" in args,
         "ghost_run":      "--ghost-run" in args,
+        "resume":         "--resume" in args,
     }
 
 
@@ -178,22 +179,33 @@ def main():
         else:
             console.print("[dim]Skipping Inbox Agent (dry-run or skip-send)[/dim]")
 
-        # ── Step 3: Discovery ──────────────────────────────────────────
-        from agents.discovery_agent import DiscoveryAgent
-        discovery = DiscoveryAgent()
-        leads = discovery.run(profile, dry_run=flags["dry_run"])
-        run_summary["leads_discovered"] = len(leads)
+        # ── Step 3 & 4: Discovery & Ghostwriter (or Resume) ────────────
+        if flags.get("resume"):
+            if LEADS_PATH.exists():
+                with open(LEADS_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    leads = data.get("leads", [])
+                console.print(f"[bold green]▶ Resuming previous run. Loaded {len(leads)} leads from today's cache ({LEADS_PATH.name}).[/bold green]")
+                run_summary["leads_discovered"] = len(leads)
+                run_summary["notes_drafted"] = len(leads)
+            else:
+                console.print(f"[bold red]Error: No cached leads file found at {LEADS_PATH} to resume. Run python main.py normally first.[/bold red]")
+                return
+        else:
+            from agents.discovery_agent import DiscoveryAgent
+            discovery = DiscoveryAgent()
+            leads = discovery.run(profile, dry_run=flags["dry_run"])
+            run_summary["leads_discovered"] = len(leads)
 
-        if not leads:
-            console.print("[yellow]No leads discovered today. Exiting.[/yellow]")
-            write_run_log(run_summary)
-            return
+            if not leads:
+                console.print("[yellow]No leads discovered today. Exiting.[/yellow]")
+                write_run_log(run_summary)
+                return
 
-        # ── Step 4: Ghostwriter ────────────────────────────────────────
-        from agents.ghostwriter_agent import GhostwriterAgent
-        writer = GhostwriterAgent()
-        leads = writer.run(leads, profile, dry_run=flags["dry_run"])
-        run_summary["notes_drafted"] = len(leads)
+            from agents.ghostwriter_agent import GhostwriterAgent
+            writer = GhostwriterAgent()
+            leads = writer.run(leads, profile, dry_run=flags["dry_run"])
+            run_summary["notes_drafted"] = len(leads)
 
         # ── Step 5: Messenger (Blank Requests) ─────────────────────
         if flags["skip_send"]:
