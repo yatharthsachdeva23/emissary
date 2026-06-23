@@ -233,41 +233,18 @@ class GhostwriterAgent:
         return False
 
     def _call_gemini_for_cohort(self, prompt: str, cohort_name: str, max_retries_per_key: int = 3) -> list:
-        """Calls Gemini API with automatic key rotation on quota errors."""
+        """Calls Gemini API with automatic round-robin rotation on any errors."""
         drafted = []
         with Progress(SpinnerColumn(), TextColumn(f"Gemini bulk drafting ({cohort_name})..."), console=console) as p:
             p.add_task("", total=None)
-            # Try up to 4 keys (one rotation attempt per key)
-            for key_attempt in range(4):
-                try:
-                    client, key_label = get_client_with_rotation()
-                    for attempt in range(max_retries_per_key):
-                        try:
-                            resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-                            drafted = self._extract_json(resp.text) or []
-                            return drafted
-                        except Exception as e:
-                            err_str = str(e)
-                            # Quota exceeded → rotate key
-                            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                                console.print(f"\n[yellow]⚠ Gemini {key_label} quota exceeded. Rotating key...[/yellow]")
-                            # Transient overload → wait and retry same key
-                            elif "503" in err_str or "overload" in err_str.lower() or "unavailable" in err_str.lower():
-                                m = re.search(r"retry in (\d+(?:\.\d+)?)s", err_str)
-                                wait_time = math.ceil(float(m.group(1))) + 2 if m else min(15 * (2 ** attempt), 90)
-                                console.print(f"\n[yellow]⚠ Gemini {key_label} overloaded (attempt {attempt+1}/{max_retries_per_key}). Retrying in {wait_time}s...[/yellow]")
-                                time.sleep(wait_time)
-                                continue
-                            else:
-                                console.print(f"\n[red]❌ Gemini API failed: {e}[/red]")
-                                return []
-                            # 429 → mark exhausted and break to try next key
-                            mark_key_exhausted()
-                            break
-                except RuntimeError as e:
-                    console.print(f"\n[red]❌ {e}[/red]")
-                    return []
-        console.print(f"\n[red]❌ All Gemini keys exhausted for cohort '{cohort_name}'.[/red]")
+            try:
+                from utils.gemini_client import generate_with_rotation
+                resp_text = generate_with_rotation(prompt, model="gemini-2.5-flash")
+                drafted = self._extract_json(resp_text) or []
+                return drafted
+            except Exception as e:
+                console.print(f"\n[red]❌ Gemini API failed for cohort '{cohort_name}': {e}[/red]")
+                return []
         return drafted
 
     def run(self, leads: list, profile: dict, dry_run: bool = False) -> list:

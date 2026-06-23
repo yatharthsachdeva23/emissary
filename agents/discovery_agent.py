@@ -152,49 +152,43 @@ class DiscoveryAgent:
         payload = {"q": query, "num": num, "gl": "in", "hl": "en"}
         if tbs:
             payload["tbs"] = tbs
-        try:
-            resp = requests.post(SERPER_URL, headers=headers, json=payload, timeout=15)
-            resp.raise_for_status()
-            return [{"url": i.get("link", ""), "title": i.get("title", ""),
-                     "snippet": i.get("snippet", ""), "date": i.get("date", ""),
-                     "source_query": query}
-                    for i in resp.json().get("organic", [])]
-        except Exception as e:
-            console.print(f"[red]Serper error: {e}[/red]")
-            return []
+        # Try request with up to 3 retries on transient connection timeouts
+        for attempt in range(3):
+            try:
+                resp = requests.post(SERPER_URL, headers=headers, json=payload, timeout=30)
+                if resp.status_code == 400:
+                    try:
+                        err_json = resp.json()
+                        err_msg = err_json.get("message", "")
+                        if "credit" in err_msg.lower():
+                            console.print("[bold red]🚨 Serper API Error: Out of credits! Please refill your Serper account or replace the SERPER_API_KEY in your .env file.[/bold red]")
+                            raise Exception("Serper API: Out of credits. Please update your Serper key.")
+                    except ValueError:
+                        pass
+                resp.raise_for_status()
+                return [{"url": i.get("link", ""), "title": i.get("title", ""),
+                         "snippet": i.get("snippet", ""), "date": i.get("date", ""),
+                         "source_query": query}
+                        for i in resp.json().get("organic", [])]
+            except Exception as e:
+                # If we raised the custom out of credits exception, propagate it up
+                if "Out of credits" in str(e):
+                    raise e
+                if attempt < 2:
+                    console.print(f"[yellow]⚠ Serper query failed on attempt {attempt + 1}/3: {e}. Retrying in 3s...[/yellow]")
+                    time.sleep(3)
+                else:
+                    console.print(f"[red]Serper error: {e}[/red]")
+                    return []
 
     def _gemini_call(self, prompt: str, label: str = "Gemini") -> Optional[str]:
-        """Single Gemini call with key rotation on 429, retry on 503/overload."""
-        max_retries_per_key = 3
-        for key_attempt in range(4):
-            try:
-                client, key_label = get_client_with_rotation()
-            except RuntimeError as e:
-                console.print(f"[red]❌ {e}[/red]")
-                return None
-
-            for attempt in range(max_retries_per_key):
-                try:
-                    resp = client.models.generate_content(
-                        model="gemini-2.5-flash", contents=prompt
-                    )
-                    return resp.text
-                except Exception as e:
-                    err_str = str(e)
-                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                        console.print(f"[yellow]⚠ {label} {key_label} quota exceeded. Rotating key...[/yellow]")
-                        mark_key_exhausted()
-                        break  # try next key
-                    elif "503" in err_str or "overload" in err_str.lower() or "unavailable" in err_str.lower():
-                        match = re.search(r"retry in (\d+(?:\.\d+)?)s", err_str)
-                        wait = math.ceil(float(match.group(1))) + 2 if match else 15 * (attempt + 1)
-                        console.print(f"[yellow]⚠ {label} {key_label} busy. Retrying in {wait}s...[/yellow]")
-                        time.sleep(wait)
-                    else:
-                        console.print(f"[red]❌ {label} failed: {e}[/red]")
-                        return None
-        console.print(f"[red]❌ {label} — all Gemini keys exhausted.[/red]")
-        return None
+        """Single Gemini call with automatic round-robin rotation on any errors."""
+        try:
+            from utils.gemini_client import generate_with_rotation
+            return generate_with_rotation(prompt, model="gemini-2.5-flash")
+        except Exception as e:
+            console.print(f"[red]❌ {label} failed: {e}[/red]")
+            return None
 
     def _extract_json(self, text: str) -> Optional[list]:
         if not text:
@@ -658,10 +652,20 @@ class DiscoveryAgent:
 
     def save_leads(self, leads: list) -> None:
         DATA_DIR.mkdir(exist_ok=True)
+        # Write leads_today.json
+        payload = {"date": datetime.now().isoformat(), "count": len(leads), "leads": leads}
         with open(LEADS_PATH, "w", encoding="utf-8") as f:
-            json.dump({"date": datetime.now().isoformat(), "count": len(leads), "leads": leads},
-                      f, indent=2, ensure_ascii=False)
-        console.print(f"[green]✓ Saved {len(leads)} leads[/green]")
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+        
+        # Write historical copy
+        history_dir = DATA_DIR / "history"
+        history_dir.mkdir(exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        history_path = history_dir / f"leads_{timestamp}.json"
+        with open(history_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+            
+        console.print(f"[green]✓ Saved {len(leads)} leads (and historical backup: data/history/{history_path.name})[/green]")
 
     def mark_contacted(self, profile_url: str) -> None:
         seen = self._load_seen_profiles()
