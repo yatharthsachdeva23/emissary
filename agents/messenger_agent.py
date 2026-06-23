@@ -652,7 +652,20 @@ class MessengerAgent:
                         
                         url = lead.get("linkedin_url", "")
 
-                        console.print(f"\n  [{self.sent_count + 1}/{len(leads)}] {name} @ {lead.get('company', '?')}")
+                        # Check if already processed in this or a previous run
+                        if url:
+                            try:
+                                from agents.discovery_agent import DiscoveryAgent
+                                seen = DiscoveryAgent()._load_seen_profiles()
+                                if url in seen:
+                                    console.print(f"  [dim]  - Already processed/contacted: {name}. Skipping.[/dim]")
+                                    lead["status"] = "already_processed"
+                                    self.results.append(lead)
+                                    continue
+                            except Exception:
+                                pass
+
+                        console.print(f"\n  [{self.sent_count + 1}/{len(leads)}] {name} @ {lead.get('company', '?')} ({url})")
 
                         if not url:
                             console.print(f"  [yellow]  ⚠ No URL for {name} — skipping[/yellow]")
@@ -679,6 +692,11 @@ class MessengerAgent:
                             lead["status"] = "skipped_visit_failed"
                             self.skipped_count += 1
                             self.results.append(lead)
+                            try:
+                                from agents.discovery_agent import DiscoveryAgent
+                                DiscoveryAgent().mark_contacted(url)
+                            except Exception:
+                                pass
                             continue
 
                         # Verify criteria (must be 500+ connections and located in India)
@@ -689,6 +707,8 @@ class MessengerAgent:
                             try:
                                 from utils.sheets import SheetsClient
                                 SheetsClient().update_status(url, "Skipped (Profile Criteria)")
+                                from agents.discovery_agent import DiscoveryAgent
+                                DiscoveryAgent().mark_contacted(url)
                             except Exception:
                                 pass
                             continue
@@ -712,12 +732,20 @@ class MessengerAgent:
                             try:
                                 from utils.sheets import SheetsClient
                                 SheetsClient().update_status(lead.get("linkedin_url", ""), "Blank Sent")
+                                from agents.discovery_agent import DiscoveryAgent
+                                DiscoveryAgent().mark_contacted(lead.get("linkedin_url", ""))
                             except Exception:
                                 pass
                         else:
                             self.skipped_count += 1
                             lead["status"] = status
                             console.print(f"  [yellow]  ⚠ Skipped: {status}[/yellow]")
+                            try:
+                                if lead.get("linkedin_url"):
+                                    from agents.discovery_agent import DiscoveryAgent
+                                    DiscoveryAgent().mark_contacted(lead.get("linkedin_url", ""))
+                            except Exception:
+                                pass
 
                         self.results.append(lead)
 

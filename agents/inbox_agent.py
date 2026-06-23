@@ -335,7 +335,8 @@ class InboxAgent:
             return False
 
         try:
-            console.print(f"\n  → Sending DM to [bold]{name}[/bold]")
+            console.print(f"\n  → Sending DM to [bold]{name}[/bold] ({url})")
+            console.print(f"    Message: {dm[:120]}...")
             
             # Normalize URL to use the detected regional domain (e.g. in.linkedin.com)
             url = url.strip()
@@ -358,6 +359,23 @@ class InboxAgent:
                 page.goto(url, wait_until="domcontentloaded", timeout=45000)
             except Exception:
                 pass # Proceed anyway if page times out on background scripts
+            
+            try:
+                # Inject a CSS stylesheet to completely hide the top navigation bar and all Premium/upsell banners
+                page.add_style_tag(content="""
+                    #global-nav, 
+                    .global-nav, 
+                    header,
+                    a[href*='premium'], 
+                    button[aria-label*='premium'], 
+                    [class*='premium-upsell'],
+                    [id*='premium'] { 
+                        display: none !important; 
+                    }
+                """)
+            except Exception:
+                pass
+                
             self._human_sleep(3, 5)
 
             # ── Close any lingering LinkedIn chat panels from previous DMs ──────
@@ -391,17 +409,35 @@ class InboxAgent:
             # ── ISOLATE TOP CARD ─────────────────────────────────────────────────
             # Prevent scanning the 'More profiles for you' sidebar which has its own 
             # Message buttons (clicking these on 3rd-degree connections opens the Premium modal).
-            main_area = page.locator(
-                ".scaffold-layout__main .pv-top-card, "
-                "main .pv-top-card, "
-                ".scaffold-layout__main section.artdeco-card:first-of-type, "
-                "main section.artdeco-card:first-of-type"
-            ).first
+            # Try to locate the main column container first, which is .scaffold-layout__main-column
+            main_col = page.locator(".scaffold-layout__main-column, .scaffold-layout__main .scaffold-layout__main-column").first
             
-            if not main_area.is_visible(timeout=500):
-                main_area = page.locator(".scaffold-layout__main").first
+            main_area = None
+            if main_col.is_visible(timeout=1000):
+                # Find the h1 inside the main column, then get its ancestor card/section container
+                h1_element = main_col.locator("h1").first
+                if h1_element.is_visible(timeout=1000):
+                    main_area = main_col.locator("xpath=//h1/ancestor::*[contains(@class, 'card') or contains(@class, 'pv-top-card') or parent::*[contains(@class, 'main-column') or @id='main']]").first
+                    if not main_area.is_visible(timeout=500):
+                        main_area = h1_element.locator("xpath=./ancestor::div[contains(@class, 'artdeco-card') or contains(@class, 'pv-top-card') or position() < 5]").first
+                
+                if not main_area or not main_area.is_visible(timeout=500):
+                    main_area = main_col.locator("section, div").first
+
+            if not main_area or not main_area.is_visible(timeout=500):
+                main_area = page.locator(
+                    "main section:has(h1), "
+                    "main div.artdeco-card:has(h1), "
+                    ".scaffold-layout__main .pv-top-card, "
+                    "main .pv-top-card, "
+                    ".scaffold-layout__main section.artdeco-card:first-of-type, "
+                    "main section.artdeco-card:first-of-type"
+                ).first
+                
                 if not main_area.is_visible(timeout=500):
-                    main_area = page.locator("main")
+                    main_area = page.locator(".scaffold-layout__main .scaffold-layout__main-column, .scaffold-layout__main").first
+                    if not main_area.is_visible(timeout=500):
+                        main_area = page.locator("main")
 
             # Find the Message button inside the isolated top card using STRICT selectors
             message_btn = None
@@ -455,10 +491,21 @@ class InboxAgent:
                 console.print(f"  [yellow]  ⚠ Message button not found for {name}[/yellow]")
                 return False
 
+            try:
+                # Hide the global navigation bar to prevent any overlay/sticky header intercepting or receiving clicks
+                page.evaluate("const nav = document.getElementById('global-nav'); if (nav) nav.style.display = 'none';")
+            except Exception:
+                pass
+
             message_btn.scroll_into_view_if_needed()
             page.evaluate("window.scrollBy(0, -100)")
             page.wait_for_timeout(400)
-            message_btn.click()
+            
+            try:
+                # Use a JS click to avoid Playwright scrolling the element under the sticky top navbar
+                message_btn.evaluate("el => el.click()")
+            except Exception:
+                message_btn.click()
             # Wait longer for the new chat box to fully load and take focus
             self._human_sleep(4, 6)
 
@@ -626,23 +673,29 @@ class InboxAgent:
             except Exception:
                 sheet = None
 
-            for lead in queue:
-                success = self.send_dm(page, lead, ghost_run=ghost_run)
+            try:
+                for lead in queue:
+                    success = self.send_dm(page, lead, ghost_run=ghost_run)
 
-                if success and not ghost_run:
-                    summary["dm_sent"] += 1
-                    # Update sheet status to DM Sent
-                    if sheet:
-                        sheet.update_status_by_name(lead["name"], "DM Sent")
-                        console.print(f"  [green]  ✓ Sheet updated: DM Sent[/green]")
-                elif success and ghost_run:
-                    summary["dm_sent"] += 1  # Ghost counts as sent for stats
-                else:
-                    summary["dm_failed"] += 1
+                    if success and not ghost_run:
+                        summary["dm_sent"] += 1
+                        # Update sheet status to DM Sent
+                        if sheet:
+                            sheet.update_status_by_name(lead["name"], "DM Sent")
+                            console.print(f"  [green]  ✓ Sheet updated: DM Sent[/green]")
+                    elif success and ghost_run:
+                        summary["dm_sent"] += 1  # Ghost counts as sent for stats
+                    else:
+                        summary["dm_failed"] += 1
 
-                self._human_sleep(4, 8)  # Strict jitter between each DM
+                    self._human_sleep(4, 8)  # Strict jitter between each DM
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Closer interrupted by user. Stopping DM sending immediately...[/yellow]")
 
-            browser.close()
+            try:
+                browser.close()
+            except Exception:
+                pass
 
         console.print(
             f"\n[bold green]Closer done:[/bold green] "
