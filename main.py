@@ -104,6 +104,26 @@ def write_run_log(summary: dict) -> None:
         f.write(json.dumps(summary) + "\n")
 
 
+def wait_for_network(timeout_seconds: int = 600) -> bool:
+    """Wait for network connection to become available before starting the pipeline."""
+    import urllib.request
+    import time
+    
+    console.print("[dim]Checking network connection...[/dim]")
+    start_time = time.time()
+    while time.time() - start_time < timeout_seconds:
+        try:
+            # Try connecting to a reliable public host
+            urllib.request.urlopen("https://1.1.1.1", timeout=5)
+            console.print("[green]✓ Network connection verified.[/green]")
+            return True
+        except Exception:
+            console.print("[yellow]⚠ No network connection. Retrying in 10s...[/yellow]")
+            time.sleep(10)
+    console.print("[bold red]❌ Timeout: Network connection not available. Exiting.[/bold red]")
+    return False
+
+
 def main():
     flags = parse_args()
 
@@ -114,6 +134,11 @@ def main():
         + (" [yellow](TEST MODE)[/yellow]" if flags["test_mode"] else "")
         + (" [magenta](GHOST RUN)[/magenta]" if flags["ghost_run"] else "")
     )
+
+    # ── Wait for network connection ─────────────────────────────────────────
+    if not flags["dry_run"] and not flags["setup_session"]:
+        if not wait_for_network():
+            sys.exit(1)
 
     # ── Time Check Safeguard ───────────────────────────────────────────────
     if not (flags["setup_session"] or flags["dry_run"] or flags["test_mode"] or flags["ghost_run"]):

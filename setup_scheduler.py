@@ -67,7 +67,7 @@ def get_task_xml() -> str:
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <AllowHardTerminate>false</AllowHardTerminate>
     <StartWhenAvailable>true</StartWhenAvailable>
-    <RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
     <ExecutionTimeLimit>PT4H</ExecutionTimeLimit>
     <Enabled>true</Enabled>
     <Hidden>false</Hidden>
