@@ -113,8 +113,8 @@ def wait_for_network(timeout_seconds: int = 600) -> bool:
     start_time = time.time()
     while time.time() - start_time < timeout_seconds:
         try:
-            # Try connecting to a reliable public host
-            urllib.request.urlopen("https://1.1.1.1", timeout=5)
+            # Try connecting to a reliable public host via HTTP to avoid SSL cert issues
+            urllib.request.urlopen("http://www.google.com", timeout=5)
             console.print("[green]✓ Network connection verified.[/green]")
             return True
         except Exception:
