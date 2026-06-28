@@ -238,12 +238,18 @@ def main():
         else:
             from agents.messenger_agent import MessengerAgent
             messenger = MessengerAgent()
-            results = messenger.run(
-                leads,
-                dry_run=flags["dry_run"],
-                test_mode=flags["test_mode"],
-                ghost_run=flags["ghost_run"],
-            )
+            try:
+                results = messenger.run(
+                    leads,
+                    dry_run=flags["dry_run"],
+                    test_mode=flags["test_mode"],
+                    ghost_run=flags["ghost_run"],
+                )
+            except KeyboardInterrupt:
+                # Grab whatever the messenger managed to process
+                results = list(messenger.results)
+                console.print("\n[yellow]Pipeline interrupted — saving partial results...[/yellow]")
+                run_summary["error"] = "KeyboardInterrupt"
 
             sent = [r for r in results if r.get("status") in ("Blank Sent", "ghost_sent")]
             skipped = [r for r in results if r.get("status") not in ("Blank Sent", "ghost_sent", "dry_run", "test_visited")]
@@ -274,9 +280,15 @@ def main():
                 except Exception as e:
                     console.print(f"[yellow]Failed to mark seen profiles: {e}[/yellow]")
 
+            # If we were interrupted, stop here so the outer except isn't re-raised
+            if run_summary.get("error") == "KeyboardInterrupt":
+                write_run_log(run_summary)
+                console.print("[yellow]Progress saved. Exiting cleanly.[/yellow]")
+                return
+
 
     except KeyboardInterrupt:
-        console.print("\n[yellow]Pipeline interrupted by user.[/yellow]")
+        console.print("\n[yellow]Pipeline interrupted by user before messenger started.[/yellow]")
         run_summary["error"] = "KeyboardInterrupt"
 
     except Exception as e:

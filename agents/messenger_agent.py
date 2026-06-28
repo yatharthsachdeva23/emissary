@@ -633,7 +633,10 @@ class MessengerAgent:
 
             # Validate session
             if not self._check_session_valid(page):
-                browser.close()
+                try:
+                    browser.close()
+                except Exception:
+                    pass
                 return leads
 
             # ── Process leads in batches ─────────────────────────────────────
@@ -685,7 +688,10 @@ class MessengerAgent:
                                     # Mark remaining as not_sent
                                     for remaining in leads[batch_start + i:]:
                                         remaining["status"] = "aborted"
-                                    browser.close()
+                                    try:
+                                        browser.close()
+                                    except Exception:
+                                        pass
                                     return leads
 
                                 console.print(f"  [yellow]  ⚠ Skipped: Visit failed for {name}[/yellow]")
@@ -767,7 +773,10 @@ class MessengerAgent:
                 console.print("\n[yellow]Messenger interrupted by user. Stopping immediately and saving progress...[/yellow]")
                 # We return self.results so that main.py can log them!
 
-            browser.close()
+            try:
+                browser.close()
+            except Exception:
+                pass
 
         console.print(
             Panel(
