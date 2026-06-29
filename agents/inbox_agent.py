@@ -447,9 +447,14 @@ class InboxAgent:
                 'a:text-is("Message")',
                 'button:has(span:text-is("Message"))',
                 'a:has(span:text-is("Message"))',
+                # Flexible text matches for "Message <Name>"
+                'button:has-text("Message")',
+                'a:has-text("Message")',
                 # Explicit aria-labels used by LinkedIn for the profile message button
                 'button[aria-label^="Message "]',
                 'a[aria-label^="Message "]',
+                'button[aria-label*="Message"]',
+                'a[aria-label*="Message"]',
                 'button[aria-label^="Send a message to"]',
                 'a[aria-label^="Send a message to"]'
             ]
