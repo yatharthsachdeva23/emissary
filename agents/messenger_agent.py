@@ -360,20 +360,15 @@ class MessengerAgent:
             # Sidebar cards are always rendered at x > 900px. This positional check
             # is viewport-based and immune to LinkedIn's obfuscated class names.
             # ─────────────────────────────────────────────────────────────────────
-            # ── ISOLATE TOP CARD ─────────────────────────────────────────────────
-            # Prevent scanning the 'More profiles for you' sidebar by strictly 
-            # isolating the top profile card element.
-            main_area = page.locator(
-                ".scaffold-layout__main .pv-top-card, "
-                "main .pv-top-card, "
-                ".scaffold-layout__main section.artdeco-card:first-of-type, "
-                "main section.artdeco-card:first-of-type"
-            ).first
+            # Locate the main column container first, which is .scaffold-layout__main-column
+            main_col = page.locator(".scaffold-layout__main-column, .scaffold-layout__main .scaffold-layout__main-column").first
             
-            if not main_area.is_visible(timeout=500):
-                main_area = page.locator(".scaffold-layout__main").first
-                if not main_area.is_visible(timeout=500):
-                    main_area = page.locator("main")
+            if main_col.is_visible(timeout=2000):
+                main_area = main_col
+            else:
+                main_area = page.locator("main").first
+                if not main_area.is_visible(timeout=1000):
+                    main_area = page
 
             candidates = []
 

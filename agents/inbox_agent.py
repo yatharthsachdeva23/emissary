@@ -406,38 +406,17 @@ class InboxAgent:
                 console.print(f"  [red]  ✘ Profile redirected to login/authwall. Skipping DM.[/red]")
                 return False
 
-            # ── ISOLATE TOP CARD ─────────────────────────────────────────────────
             # Prevent scanning the 'More profiles for you' sidebar which has its own 
             # Message buttons (clicking these on 3rd-degree connections opens the Premium modal).
-            # Try to locate the main column container first, which is .scaffold-layout__main-column
+            # Locate the main column container first, which is .scaffold-layout__main-column
             main_col = page.locator(".scaffold-layout__main-column, .scaffold-layout__main .scaffold-layout__main-column").first
             
-            main_area = None
-            if main_col.is_visible(timeout=1000):
-                # Find the h1 inside the main column, then get its ancestor card/section container
-                h1_element = main_col.locator("h1").first
-                if h1_element.is_visible(timeout=1000):
-                    main_area = main_col.locator("xpath=//h1/ancestor::*[contains(@class, 'card') or contains(@class, 'pv-top-card') or parent::*[contains(@class, 'main-column') or @id='main']]").first
-                    if not main_area.is_visible(timeout=500):
-                        main_area = h1_element.locator("xpath=./ancestor::div[contains(@class, 'artdeco-card') or contains(@class, 'pv-top-card') or position() < 5]").first
-                
-                if not main_area or not main_area.is_visible(timeout=500):
-                    main_area = main_col.locator("section, div").first
-
-            if not main_area or not main_area.is_visible(timeout=500):
-                main_area = page.locator(
-                    "main section:has(h1), "
-                    "main div.artdeco-card:has(h1), "
-                    ".scaffold-layout__main .pv-top-card, "
-                    "main .pv-top-card, "
-                    ".scaffold-layout__main section.artdeco-card:first-of-type, "
-                    "main section.artdeco-card:first-of-type"
-                ).first
-                
-                if not main_area.is_visible(timeout=500):
-                    main_area = page.locator(".scaffold-layout__main .scaffold-layout__main-column, .scaffold-layout__main").first
-                    if not main_area.is_visible(timeout=500):
-                        main_area = page.locator("main")
+            if main_col.is_visible(timeout=2000):
+                main_area = main_col
+            else:
+                main_area = page.locator("main").first
+                if not main_area.is_visible(timeout=1000):
+                    main_area = page
 
             # Find the Message button inside the isolated top card using STRICT selectors
             message_btn = None
