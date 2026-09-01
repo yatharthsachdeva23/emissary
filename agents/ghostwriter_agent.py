@@ -36,43 +36,17 @@ Yatharth is a B.Tech Information Technology student at Delhi Technological Unive
 ABOUT YATHARTH:
 {my_profile_json}
 
-YATHARTH'S PROJECT & EXPERIENCE PORTFOLIO (use ONLY these projects/experiences, never invent others):
-1. NoBrokerHood AI PM Internship - Architected an automated B2B sales outreach system requiring zero human interaction (capturing 25+ extra leads/month), engineered a specialized search algorithm delivering 1.5x work on identical API credits, and built a RAG-based Master Research Agent with Vector DBs for enterprise deal closures.
-2. NMG Labs Agentic AI Hackathon - Secured 4th Rank nationally building production-grade agentic workflows and multi-agent coordination.
-3. SentinelMesh - Zero-trust federated hosting platform for multi-agent AI systems using containerized WASM sandboxes. Implemented a "mutual blindness" protocol so users can run sensitive data through third-party AI agents without the developer ever seeing it.
-4. PS-CRM Portal - Urban governance platform for 80,000+ citizens to report regional issues via voice or text, auto-categorized and routed to government departments. National Finalist at India Innovates 2026. Built AI ticket clustering and real-time social listening engine.
-5. NFPC Behavioral Fraud System - High-performance mule account detection model using LightGBM and Polars, 90%+ accuracy. Engineered Social Graph Entropy and Drain Velocity features to catch sophisticated fraud patterns. Won 1st place at IIT Delhi among 400+ teams.
-6. Kinex App - AI-driven fitness assistant (React Native, Supabase) that generates personalized daily workout plans and muscle analysis. Built a localized diet and workout generator that adjusts based on real-time muscle fatigue analysis.
-7. AIRS: UIDAI Predictive Dashboard - Predictive decision-support ecosystem for government officials to monitor national identity data metrics and anticipate infrastructure loads before they impact citizen services.
-8. Paytm "Digital Udhaar" - Digitizes the traditional informal "khata" credit system. Customers initiate credit via QR scan, merchants get a digital dashboard to manage dues. Bridges traditional credit habits and modern digital payments.
-9. SkinAI - Computer vision skincare assistant using CNNs. Users upload a photo to get a science-backed skincare routine (CTTMS). Maps skin analysis results to an ingredient-level database to filter out irritants.
-10. NeuroTrack X - Cognitive health diagnostics tool using Azure AI and NLP. Monitors longitudinal speech patterns to detect subtle linguistic shifts for early detection of cognitive health risks years before traditional diagnosis.
-11. Grant-Flow - Automated scholarship/grant verification system using multi-agent verification logic to cross-reference application data against institutional databases, reducing manual fraud and processing time.
-12. Global Catalogue Registry - Centralized catalog system for the ONDC network. Optimized search complexity from N x N to N + N and reduced API response latency from 200ms to 140ms using Redis caching.
-13. Social Media Virality Predictor - ML pipeline analyzing 5000+ posts to forecast engagement levels. Identifies primary factors driving viral engagement using categorical encoding and scikit-learn.
-14. Airlines Management System - Enterprise flight booking and passenger record system in Python/SQL for 5 airlines, 100+ users. Complex scheduling and ticket history tracking.
-15. HealthSync - Conversational healthcare AI using NLP and speech-to-text to transcribe doctor-patient dialogues into structured medical records and automated prescriptions.
-16. Document Analyser - Intelligent document processing engine using OCR and text summarization models to extract key insights from large-scale structured or unstructured documents.
-17. National Health Portal - Full-stack digital platform integrating traditional Ayurvedic practices with modern medical science, with a unified database schema cross-referencing remedies with clinical data.
-18. Emissary - This LinkedIn automation system itself. It runs daily, scrapes leads from Google using targeted search queries, scores them with Gemini AI, then autonomously navigates LinkedIn to send connection requests and follow-up DMs at scale.
+YATHARTH'S FEATURED PROJECTS & AI PM EXPERIENCE PORTFOLIO:
+1. NoBrokerHood LinkedIn Automation (Automated B2B Sales Outreach Engine) - Architected a zero-human-touch sales outreach engine capturing 25+ extra qualified leads per month, and engineered a specialized search optimization algorithm delivering 1.5x output coverage within identical API credit constraints.
+2. NoBrokerHood Master Research Agent (RAG System & Vector DB Pipeline) - Engineered a RAG-based Master Research Agent utilizing Vector DBs and semantic retrieval pipelines for automated internal and external intelligence gathering to accelerate enterprise deal closures.
+3. AIRS: UIDAI Predictive Dashboard - Predictive decision-support ecosystem for government officials to monitor national identity data metrics and anticipate infrastructure loads before impacting citizen services.
+4. PS-CRM Portal - Urban governance platform for 80,000+ citizens to report regional issues via voice/text, auto-categorized and routed to government departments. National Finalist at India Innovates 2026. Built AI ticket clustering and real-time social listening engine.
 
 DOMAIN-TO-PROJECT MAPPING (pick the SINGLE best match for each lead):
-- AI PM / Product Management / B2B Automation / Growth / Enterprise Sales / RAG / Search Optimization: NoBrokerHood AI PM Internship
-- Agentic AI / Multi-agent / Zero-trust / Cybersecurity / Security infrastructure: SentinelMesh or NMG Labs Hackathon
-- GovTech / Civic tech / Urban infrastructure / NLP / Social platforms / Public sector: PS-CRM Portal
-- FinTech / Fraud detection / Banking / Predictive analytics / Risk systems: NFPC Behavioral Fraud System
-- Fitness / Consumer health apps / Mobile development / Wellness tech: Kinex App
-- Government data / Identity systems / Predictive dashboards / Data engineering: AIRS UIDAI Predictive Dashboard
-- Payments / Consumer FinTech / Product management / Digital commerce / UX: Paytm Digital Udhaar
-- Healthcare AI / Computer vision / Dermatology / Consumer health / Personalization: SkinAI
-- Cognitive health / Speech AI / Neurology / Geriatric care / Azure AI: NeuroTrack X
-- Process automation / EdTech / Institutional verification / Document workflows: Grant-Flow
-- E-commerce / Backend systems / API optimization / ONDC / Marketplace infra: Global Catalogue Registry
-- Social media / Content analytics / Marketing tech / Creator tools / ML: Social Media Virality Predictor
-- Enterprise software / ERP / Database systems / B2B SaaS: Airlines Management System
-- Healthcare NLP / Conversational AI / Medical records / Clinical tech: HealthSync
-- Document AI / OCR / Information extraction / Data engineering: Document Analyser
-- Full-stack web / Holistic health / Wellness platforms / Ayurveda / Healthcare: National Health Portal
+- AI PM / B2B Outreach / Sales Automation / Search Optimization / Growth / Funnel Optimization: NoBrokerHood LinkedIn Automation
+- RAG Systems / Vector DBs / Enterprise Intelligence / Knowledge Graph / Semantic Retrieval: NoBrokerHood Master Research Agent
+- Government Data / Identity Systems / Predictive Analytics / Infrastructure Load Dashboards: AIRS UIDAI Predictive Dashboard
+- GovTech / Urban Governance / NLP / AI Ticket Clustering / Social Listening / Public Sector: PS-CRM Portal
 - DevTools / LinkedIn automation / Outreach tools / Scraping / Workflow automation: Emissary
 
 HERE ARE {count} LEADS TO DRAFT FOR:
