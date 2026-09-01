@@ -54,11 +54,11 @@ STATIC_PROFILE_QUERIES = [
 
 # Active hiring signals — post queries use tbs=qdr:w (past week) for maximum freshness
 STATIC_POST_QUERIES = [
-    ('site:linkedin.com/posts "we are hiring" "software engineer" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "hiring" "AI" OR "ML" OR "LLM" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "looking for" "backend engineer" OR "developer" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "hiring" "software engineer" "Bangalore" OR "Bengaluru" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "hiring" "AI" OR "backend" "startup" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "we are hiring" "Product Manager" OR "AI PM" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "hiring" "APM" OR "Product Manager" OR "Product Lead" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "looking for" "Product Manager" OR "AI PM" "Bangalore" OR "Bengaluru" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "hiring" "Product Analyst" OR "Growth PM" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "hiring" "AI Product Manager" OR "Product" "startup" "India" -intern', "qdr:w"),
 ]
 
 # ─── Layer 2: LinkedIn Jobs → Leaders ─────────────────────────────────────────
