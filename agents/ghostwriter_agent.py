@@ -36,18 +36,18 @@ Yatharth is a student at Delhi Technological University (DTU), currently in his 
 ABOUT YATHARTH:
 {my_profile_json}
 
-YATHARTH'S FEATURED PROJECTS & AI PM EXPERIENCE PORTFOLIO:
-1. NoBrokerHood LinkedIn Automation (Automated B2B Sales Outreach Engine) - Architected a zero-human-touch sales outreach engine capturing 25+ extra qualified leads per month, and engineered a specialized search optimization algorithm delivering 1.5x output coverage within identical API credit constraints.
-2. NoBrokerHood Master Research Agent (RAG System & Vector DB Pipeline) - Engineered a RAG-based Master Research Agent utilizing Vector DBs and semantic retrieval pipelines for automated internal and external intelligence gathering to accelerate enterprise deal closures.
-3. AIRS: UIDAI Predictive Dashboard - Predictive decision-support ecosystem for government officials to monitor national identity data metrics and anticipate infrastructure loads before impacting citizen services.
-4. PS-CRM Portal - Urban governance platform for 80,000+ citizens to report regional issues via voice/text, auto-categorized and routed to government departments. National Finalist at India Innovates 2026. Built AI ticket clustering and real-time social listening engine.
+YATHARTH'S FEATURED PROJECTS & PM EXPERIENCE PORTFOLIO:
+1. NoBrokerHood B2B Growth & Sales Automation - Architected an automated B2B sales outreach engine capturing 25+ extra qualified leads per month, and optimized search algorithm efficiency by 1.5x within identical credit constraints.
+2. NoBrokerHood Master Research Agent - Built an automated research intelligence system that gathers internal and market data to accelerate enterprise deal closures.
+3. AIRS: UIDAI Predictive Dashboard - Predictive decision-support dashboard for government officials to monitor national identity data metrics and anticipate infrastructure bottlenecks.
+4. PS-CRM Portal - Urban governance platform for 80,000+ citizens to report regional issues, featuring automated ticket clustering and real-time social listening (National Finalist at India Innovates 2026).
 
 DOMAIN-TO-PROJECT MAPPING (pick the SINGLE best match for each lead):
-- AI PM / B2B Outreach / Sales Automation / Search Optimization / Growth / Funnel Optimization: NoBrokerHood LinkedIn Automation
-- RAG Systems / Vector DBs / Enterprise Intelligence / Knowledge Graph / Semantic Retrieval: NoBrokerHood Master Research Agent
-- Government Data / Identity Systems / Predictive Analytics / Infrastructure Load Dashboards: AIRS UIDAI Predictive Dashboard
-- GovTech / Urban Governance / NLP / AI Ticket Clustering / Social Listening / Public Sector: PS-CRM Portal
-- DevTools / LinkedIn automation / Outreach tools / Scraping / Workflow automation: Emissary
+- Product Management / Growth / B2B Automation / Search Optimization / Funnel Growth: NoBrokerHood B2B Growth & Sales Automation
+- Market Research / Enterprise Intelligence / Deal Closures / Automation: NoBrokerHood Master Research Agent
+- Government Infrastructure / Data Dashboards / Predictive Analytics: AIRS UIDAI Predictive Dashboard
+- Urban Tech / Civic Platforms / Customer Operations / Social Listening: PS-CRM Portal
+- DevTools / Automation / Workflow Tools: Emissary
 
 HERE ARE {count} LEADS TO DRAFT FOR:
 {leads_payload}
@@ -55,10 +55,14 @@ HERE ARE {count} LEADS TO DRAFT FOR:
 Your Task:
 For EACH lead, return a JSON object with their Name, a 280-character drafted_note, and the final drafted_dm.
 
+CRITICAL TONE & VOCABULARY RULE:
+- This is a Product Management / APM / Growth role outreach. Do NOT use heavy developer or AI engineering jargon (avoid words like "RAG", "vector DB", "WASM", "semantic retrieval", "Python/Playwright").
+- Focus 100% on Product Management, Business ROI, Execution Velocity, User Growth, and Operational Efficiency.
+
 PIECE 1 - drafted_note (LinkedIn Connection Hook):
 A 280-character hook sent WITH the connection request.
-- Sound like a fellow product builder or engineer, NOT a student asking for a job.
-- Structure: [Specific observation about their company's tech/product or their work] -> [Yatharth's most relevant project/internship flex] -> [Soft, confident close]
+- Sound like a fellow product builder or business growth strategist, NOT a student asking for a job.
+- Structure: [Specific observation about their product/brand or work] -> [Yatharth's relevant PM internship/project flex] -> [Soft, confident close]
 - No URLs, no "Hi [Name]", no resume links. STRICTLY under 280 characters.
 - No em dashes. Use commas or periods to separate thoughts.
 
@@ -67,18 +71,18 @@ PIECE 2 - drafted_dm (4 paragraphs in strict order):
 PARAGRAPH 1 - Opening Compliment (CRITICAL RULE: DO NOT start with "Thanks for connecting" or any greeting. No em dashes.):
   The first line must feel like you specifically researched this person. Make them feel seen.
   - SMALL or MID STARTUP (seed, Series A, Series B, early-stage, bootstrapped): Compliment BOTH the company vision AND the person's specific work. Example: "What [Company] is building in [domain] is exactly the kind of problem worth solving at scale. The way you have approached [their specific angle] shows a rare clarity in product thinking."
-  - BIG TECH (Google, Microsoft, Amazon, Meta, Swiggy, Zomato, Flipkart, Uber, Atlassian, etc.): Compliment ONLY THE PERSON, never the company. Big Tech engineers feel nothing when you praise their employer. Compliment what THEY specifically built, posted about, or their engineering approach. Example: "The way you have approached [their specific work or post] is exactly how I think about these problems."
+  - BIG TECH (Google, Microsoft, Amazon, Meta, Swiggy, Zomato, Flipkart, Uber, Atlassian, etc.): Compliment ONLY THE PERSON, never the company. Compliment what THEY specifically built, posted about, or their product approach. Example: "The way you have approached [their specific work or post] is exactly how I think about these product trade-offs."
 
-PARAGRAPH 2 - The Reveal (Automation as proof of work, not apology):
+PARAGRAPH 2 - The Reveal (Automation as proof of product execution, not apology):
   State clearly and confidently that this is NOT a regular cold message.
-  EXACT STRUCTURE: "This is not a regular cold message. I built Emissary, a Python/Playwright system that runs daily, scrapes LinkedIn leads using Google search, scores them with Gemini AI, and autonomously sends connection requests and follow-up DMs. This message was delivered to you by that same automation."
+  EXACT STRUCTURE: "This is not a regular cold message. I built Emissary, an autonomous system that runs daily, analyzes market leads, and delivers personalized outreach. This message was delivered to you by that same automation."
   Do not shorten or paraphrase this paragraph.
 
 PARAGRAPH 3 - Project Flex (Personalized to their domain):
   Start with: "I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood."
   Then pick the SINGLE most relevant project/experience from the portfolio mapping above.
-  Mention 2 specific technical or product impact achievements chosen based on the lead's role and snippet.
-  Format: "Alongside this, I [built/executed] [Project or Experience Name], [one sentence: what it does and why it matters]. In it, I [specific technical/product detail 1] and [specific technical/product detail 2], which I think relates to what you are working on."
+  Mention 2 specific product or business impact achievements chosen based on the lead's role and snippet.
+  Format: "Alongside this, I [built/executed] [Project Name], [one sentence: what it does and why it matters]. In it, I [specific product/business achievement 1] and [specific product/business achievement 2], which I think relates to what you are working on."
   No em dashes. No "I've" contractions if possible. Keep it clean.
 
 PARAGRAPH 4 - The Close:
@@ -90,49 +94,53 @@ CRITICAL FORMATTING RULES:
 - NEVER start with "Thanks for connecting", "Hi [Name]", "I hope this finds you well", or "I came across your profile".
 - Tone: Genuine, confident, peer-to-peer. Not desperate. Not corporate. Not flattering.
 - Banned Words: "pleasure", "honored", "aspiring", "hope", "delve", "apologies", "synergy", "eager", "thrilled", "excited".
-- Total drafted_dm: 130 to 160 words. Tight enough to read, rich enough to convert.
+- Total drafted_dm: 130 to 150 words. Tight enough to read, rich enough to convert.
 
 Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
 [
   {{
     "name": "Lead Name",
     "drafted_note": "The 280-char connection hook (no em dashes, no URLs)...",
-    "drafted_dm": "[Specific compliment. Startup gets company+person. Big Tech gets only the person. No em dashes.].\\n\\nThis is not a regular cold message. I built Emissary, a Python/Playwright system that runs daily, scrapes LinkedIn leads using Google search, scores them with Gemini AI, and autonomously sends connection requests and follow-up DMs. This message was delivered to you by that same automation.\\n\\nI am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood. Alongside this, I built [Most Relevant Project/Experience], [what it does]. In it, I [specific technical detail 1] and [specific technical detail 2], which I think relates to what you are working on.\\n\\nI am actively looking for a 2-month AI Product Management / APM internship. If you find my approach interesting and have bandwidth for a curious product builder, I would love to schedule a quick chat at your convenience.\\n\\nHere is my resume: {resume_link}"
+    "drafted_dm": "[Specific compliment. Startup gets company+person. Big Tech gets only the person. No em dashes.].\\n\\nThis is not a regular cold message. I built Emissary, an autonomous system that runs daily, analyzes market leads, and delivers personalized outreach. This message was delivered to you by that same automation.\\n\\nI am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood. Alongside this, I built [Most Relevant Project/Experience], [what it does]. In it, I [specific product achievement 1] and [specific product achievement 2], which I think relates to what you are working on.\\n\\nI am actively looking for a 2-month AI Product Management / APM internship. If you find my approach interesting and have bandwidth for a curious product builder, I would love to schedule a quick chat at your convenience.\\n\\nHere is my resume: {resume_link}"
   }}
 ]"""
 
 # ── Startup/Medium Bulk Prompt ────────────────────────────────────────────────
-STARTUP_BULK_PROMPT = """You are the advanced creative drafting engine for "Emissary," a custom autonomous networking pipeline engineered by Yatharth. Yatharth is a 4th-year student at Delhi Technological University (DTU) with a 9.3 CGPA and former AI PM Intern at NoBrokerHood. He specializes in AI Product Management, zero-touch sales automation, search algorithm optimization, and multi-agent systems.
+STARTUP_BULK_PROMPT = """You are the advanced creative drafting engine for "Emissary," a custom autonomous networking pipeline engineered by Yatharth. Yatharth is a 4th-year student at Delhi Technological University (DTU) with a 9.3 CGPA and former AI PM Intern at NoBrokerHood. He specializes in Product Management, zero-touch sales automation, search algorithm optimization, and product strategy.
 
 YOUR TASK:
 I will provide a JSON array of raw lead profiles scraped from early-stage, bootstrapped, small/medium software companies and startups. For EACH lead, you must analyze their specific role, company domain, and target team framework to return a JSON object containing their 'Name', an internal 'drafted_note', and a hyper-targeted, aggressive, 3-paragraph 'drafted_dm'.
+
+CRITICAL TONE & VOCABULARY RULE:
+- Focus 100% on Product Management, Business Outcomes, Execution Velocity, User Growth, and Operational Leverage.
+- Do NOT use heavy developer/engineering jargon (avoid words like "RAG", "vector DB", "WASM", "semantic search", "Python/Playwright").
 
 HERE ARE {count} LEADS TO DRAFT FOR:
 {leads_payload}
 
 THE 280-CHARACTER LinkedIn Connection Hook (drafted_note):
 For EACH lead, generate a concise, professional 280-character connection hook (drafted_note) sent WITH the connection request.
-- Sound like a fellow product builder or engineer, NOT a student asking for a job.
-- Structure: [Specific observation about their company's tech/product or their work] -> [Yatharth's most relevant AI PM internship/project flex] -> [Soft, confident close]
+- Sound like a fellow product builder or business growth strategist, NOT a student asking for a job.
+- Structure: [Specific observation about their product/brand or work] -> [Yatharth's relevant PM internship/project flex] -> [Soft, confident close]
 - No URLs, no "Hi [Name]", no resume links. STRICTLY under 280 characters.
 - No em dashes. Use commas or periods to separate thoughts.
 
 THE 3-PARAGRAPH "ROI SALES PITCH" FRAMEWORK (drafted_dm):
 
-Paragraph 1: The Factual Engineering/Product/Growth Hook (Domain-Specific & Real)
-- Address the lead by name. Start immediately with a sharp, technically accurate, and highly relevant product, growth, or system design question targeting a structural bottleneck common to their specific domain. Do NOT use greetings (like "Hope you are well") or empty flattery.
-- Dynamically tailor this opening question based on the target role type, and expand it with 1-2 lines detailing a real product/growth trade-off:
-  * For CEO / Founder / COO / Executive Leads: Focus on scaling product execution velocity, zero-human-touch sales pipeline automation, or optimizing API & search credit overhead.
-  * For Product Manager / PM / APM Leads: Focus on feature trade-offs, RAG research agent workflows, search algorithm optimization (1.5x efficiency gains), or balancing speed vs. reliability.
-  * For Brand / Marketing / Growth Leads: Focus on automated outreach funnels, severity multipliers for ticket deduplication, or customer acquisition leverage.
+Paragraph 1: The Factual Product & Business Hook (Domain-Specific & Real)
+- Address the lead by name. Start immediately with a sharp, product-focused question targeting a structural bottleneck common to their domain. Do NOT use greetings or empty flattery.
+- Dynamically tailor this opening question based on the target role type:
+  * For CEO / Founder / COO / Executive Leads: Focus on scaling product execution velocity, zero-touch sales pipeline automation, or optimizing operational credit overhead.
+  * For Product Manager / PM / APM Leads: Focus on product feature trade-offs, automated market research workflows, 1.5x search efficiency gains, or balancing speed vs. quality.
+  * For Brand / Marketing / Growth Leads: Focus on automated outreach funnels, ticket deduplication, or customer acquisition leverage.
 
 Paragraph 2: The Authority & Automation Flex (The Live Demo)
-- Connect their bottleneck to Yatharth's credentials: "I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I built automated B2B sales engines (25+ extra leads/month), 1.5x credit-optimized search algorithms, and RAG research agents. I also ranked 4th in NMG Labs' Agentic AI Hackathon."
-- Reveal the "magic trick" using this EXACT process and phrasing: "I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous multi-agent pipeline I built to demonstrate my system design capabilities live."
+- Connect their bottleneck to Yatharth's credentials: "I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I built automated B2B sales engines (25+ extra leads/month), 1.5x credit-optimized search systems, and automated research products. I also ranked 4th in NMG Labs' Agentic AI Hackathon."
+- Reveal the "magic trick" using this EXACT process and phrasing: "I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous system I built to demonstrate my product capabilities live."
 
 Paragraph 3: The Valuation Trial Close (Position as a Value Proposition, Not Requesting an Internship)
-- Lower friction with this EXACT positioning and phrasing: "Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI PM / APM / Product Management / Growth] Intern for 2 months; if my zero-touch architectures, RAG research agents, and optimization pipelines do not provide immediate leverage to your team, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week."
-- Dynamic Role Mapping (select the exact match):
+- Lower friction with this EXACT positioning and phrasing: "Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI PM / APM / Product Management / Growth] Intern for 2 months; if my zero-touch architectures, research systems, and optimization pipelines do not provide immediate leverage to your team, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week."
+- Dynamic Role Mapping:
   * For CEO / Founder / COO / VP / PM leads: "AI PM Intern" or "APM Intern"
   * For Brand / Marketing / Growth leads: "Product & Growth Intern" or "Product Management Intern"
   * For Product Analyst / Strategy leads: "Product Analyst Intern"
@@ -141,18 +149,17 @@ Paragraph 3: The Valuation Trial Close (Position as a Value Proposition, Not Req
 - The absolute final line of this paragraph MUST strictly be: "Here is my resume: {resume_link}".
 
 CRITICAL GENERATION CONSTRAINTS:
-1. Paragraph Separation: You MUST separate the three distinct paragraphs using double newline string escapes ("\\n\\n") directly inside the JSON string value so it formats perfectly in the LinkedIn message overlay.
-2. Tone Policy: Completely transparent, proud, hacker-to-hacker, and entirely focused on what Yatharth can execute *for* them. Avoid any passive or submissive academic phrasing.
-3. No Artificial Metrics: Anchor value in real engineering/product outcomes (25+ extra leads/month via zero-touch automation, 1.5x search efficiency on equal credits, RAG vector agents).
-4. Word Limit: Aim for a total length of 140 to 150 words. Ensure it is not too short (under 130 words) or too long (over 160 words).
-5. Blacklisted Vocabulary: Under no circumstances use any of these words: "pleasure", "honored", "aspiring", "hope", "delve", "apologize", "sincerely", "opportunity", "passionate".
+1. Paragraph Separation: You MUST separate the three distinct paragraphs using double newline string escapes ("\\n\\n") directly inside the JSON string value.
+2. Tone Policy: Completely transparent, proud, hacker-to-hacker, product-focused. Avoid any passive or submissive academic phrasing.
+3. Word Limit: Aim for a total length of 130 to 150 words.
+4. Blacklisted Vocabulary: "pleasure", "honored", "aspiring", "hope", "delve", "apologize", "sincerely", "opportunity", "passionate".
 
 Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
 [
   {{
     "name": "Lead Name",
     "drafted_note": "A 280-char connection hook (no em dashes, no URLs)...",
-    "drafted_dm": "[Paragraph 1: Hi [Name], sharp product/engineering question here]\\n\\n[Paragraph 2: I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood (built 25+ extra leads/month zero-touch outreach & RAG agents, 4th Rank NMG Labs Agentic AI Hackathon). I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous multi-agent pipeline I built to demonstrate my system design capabilities live.]\\n\\n[Paragraph 3: Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI PM / APM / Product Management] Intern for 2 months; if my zero-touch architectures, RAG research agents, and optimization pipelines do not provide immediate leverage to your team, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week.\\n\\nHere is my resume: {resume_link}]"
+    "drafted_dm": "[Paragraph 1: Hi [Name], sharp product/business question here]\\n\\n[Paragraph 2: I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood (built 25+ extra leads/month zero-touch outreach & research systems, 4th Rank NMG Labs Agentic AI Hackathon). I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous system I built to demonstrate my product capabilities live.]\\n\\n[Paragraph 3: Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI PM / APM / Product Management] Intern for 2 months; if my zero-touch architectures, research systems, and optimization pipelines do not provide immediate leverage to your team, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week.\\n\\nHere is my resume: {resume_link}]"
   }}
 ]"""
 
