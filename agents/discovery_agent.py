@@ -36,38 +36,38 @@ SERPER_URL = "https://google.serper.dev/search"
 # These are broad, role-targeted profile queries using tbs=qdr:m (past month)
 # so results rotate daily as Google indexes newly updated profiles.
 STATIC_PROFILE_QUERIES = [
-    # Decision-makers at AI/ML startups & Product Leadership
-    ('site:linkedin.com/in "Co-Founder" OR "CTO" "AI" OR "ML" "startup" "India" -intern -student', "qdr:m"),
-    ('site:linkedin.com/in "Engineering Manager" OR "VP Engineering" "AI" OR "ML" "India" -intern', "qdr:m"),
-    ('site:linkedin.com/in "Head of Product" OR "VP Product" OR "Director of Product" "AI" OR "SaaS" "India" -intern', "qdr:m"),
-    ('site:linkedin.com/in "Product Manager" OR "Lead Product Manager" "AI" OR "LLM" "India" -intern', "qdr:m"),
-    ('site:linkedin.com/in "Tech Lead" OR "Lead Engineer" "backend" OR "AI" "India" -intern', "qdr:m"),
-    ('site:linkedin.com/in "Head of Engineering" OR "Principal Engineer" "India" -intern', "qdr:m"),
+    # Decision-makers & Leaders in Product, Brand, Business & Growth
+    ('site:linkedin.com/in "Head of Product" OR "VP Product" OR "Director of Product" "building" OR "growth" "India" -intern', "qdr:m"),
+    ('site:linkedin.com/in "Product Manager" OR "Lead Product Manager" "AI" OR "LLM" "growth" "India" -intern', "qdr:m"),
+    ('site:linkedin.com/in "Founder" OR "Co-Founder" "building" "product" OR "brand" "business" "India" -intern', "qdr:m"),
+    ('site:linkedin.com/in "Head of Growth" OR "Growth PM" "business" OR "brand" "India" -intern', "qdr:m"),
+    ('site:linkedin.com/in "Co-Founder" OR "CTO" "AI" OR "ML" "building" "product" "India" -intern', "qdr:m"),
+    ('site:linkedin.com/in "Product Lead" OR "Group Product Manager" "business" OR "growth" "India" -intern', "qdr:m"),
     ('site:linkedin.com/in "Founder" OR "CTO" "Fintech" OR "SaaS" OR "DevTools" "India" -intern', "qdr:m"),
     # YC / funded founders
-    ('site:linkedin.com/in "founder" "YC" OR "Y Combinator" "India" -intern', None),
+    ('site:linkedin.com/in "founder" "YC" OR "Y Combinator" "building" "India" -intern', None),
     ('site:linkedin.com/in "CTO" OR "Co-Founder" "Series A" OR "Series B" OR "Seed" "India" -intern', None),
-    # Big Tech senior engineers & Product Leaders (often mentors / refer interns)
-    ('site:linkedin.com/in "Senior Engineer" OR "Staff Engineer" "Google" OR "Microsoft" OR "Amazon" "India" -intern', None),
+    # Big Tech product & growth leaders
+    ('site:linkedin.com/in "Group Product Manager" OR "Director of Product" "Google" OR "Microsoft" OR "Amazon" "India" -intern', None),
     ('site:linkedin.com/in "Engineering Manager" OR "Group Product Manager" "Uber" OR "Atlassian" OR "Stripe" OR "Razorpay" "India" -intern', None),
 ]
 
 # Active hiring signals — post queries use tbs=qdr:w (past week) for maximum freshness
 STATIC_POST_QUERIES = [
-    ('site:linkedin.com/posts "we are hiring" "Product Manager" OR "AI PM" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "hiring" "APM" OR "Product Manager" OR "Product Lead" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "looking for" "Product Manager" OR "AI PM" "Bangalore" OR "Bengaluru" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "hiring" "Product Analyst" OR "Growth PM" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "hiring" "AI Product Manager" OR "Product" "startup" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "we are hiring" "Product Manager" OR "Growth" "building" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "hiring" "APM" OR "Product Manager" OR "Product Lead" "growth" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "looking for" "Product Manager" OR "AI PM" "business" OR "brand" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "hiring" "Product Analyst" OR "Growth PM" "building" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "hiring" "AI Product Manager" OR "Product" "brand" OR "growth" "India" -intern', "qdr:w"),
 ]
 
 # ─── Layer 2: LinkedIn Jobs → Leaders ─────────────────────────────────────────
 # Job posting queries (past week) to discover which companies are actively hiring PMs
 JOB_SOURCING_QUERIES = [
-    'site:linkedin.com/jobs/view "Product Manager" "India"',
-    'site:linkedin.com/jobs/view "AI Product Manager" OR "AI PM" "India"',
-    'site:linkedin.com/jobs/view "Associate Product Manager" OR "APM" "India"',
-    'site:linkedin.com/jobs/view "Product Lead" OR "Group Product Manager" "India"',
+    'site:linkedin.com/jobs/view "Product Manager" "growth" OR "business" "India"',
+    'site:linkedin.com/jobs/view "AI Product Manager" OR "AI PM" "building" "India"',
+    'site:linkedin.com/jobs/view "Associate Product Manager" OR "APM" "product" "India"',
+    'site:linkedin.com/jobs/view "Product Lead" OR "Group Product Manager" "brand" "India"',
     'site:linkedin.com/jobs/view "Product Analyst" OR "Growth PM" "India"',
 ]
 
@@ -98,9 +98,10 @@ Generate exactly 12 unique Google search dorks to find high-value LinkedIn profi
 
 Rules:
 - Mix profile queries (site:linkedin.com/in) and post queries (site:linkedin.com/posts).
+- Incorporate core business & product keywords into query variations: product, brand, building, business, growth.
 - Target regions: Delhi NCR, Gurgaon, Noida, Bangalore, Remote.
 - Use varied Product & AI domains matching candidate: AI Product Management, Agentic AI, RAG Systems, Vector DBs, Search Optimization, B2B Automation, Funnel Growth, Urban Governance, Predictive Analytics.
-- Use varied roles: Head of Product, VP Product, Director of Product, Chief Product Officer, Founder, Co-Founder, Lead PM, Group Product Manager, Product Lead.
+- Use varied roles: Head of Product, VP Product, Director of Product, Chief Product Officer, Founder, Co-Founder, Lead PM, Group Product Manager, Product Lead, Growth Lead.
 - NEVER hardcode a specific year. NEVER use "intern" or "student" as required keywords (only as exclusions: -intern -student).
 - Each query must be meaningfully different — avoid repeating the same role+tech combo.
 
