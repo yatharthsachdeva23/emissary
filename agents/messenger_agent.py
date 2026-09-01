@@ -264,22 +264,27 @@ class MessengerAgent:
                 if should_abort:
                     return False
 
-                # Human-like: scroll down the profile slowly
+                # Human-like scrolling to trigger loading of lazy widgets (like Experience & Connections)
                 try:
-                    for _ in range(random.randint(2, 4)):
-                        dist, dur = random_scroll_params()
-                        page.evaluate(f"window.scrollBy(0, {dist})")
-                        human_sleep(0.8, 2.0)
+                    # 1. Focus page
+                    page.mouse.move(640, 400)
+                    page.mouse.click(640, 400)
+                    human_sleep(0.5, 1.0)
 
-                    # Scroll back up
-                    page.evaluate("window.scrollTo(0, 0)")
-                    human_sleep(1, 2)
+                    # 2. Scroll down by 650-950px
+                    scroll_dist = random.randint(650, 950)
+                    page.mouse.wheel(0, scroll_dist)
+                    page.evaluate(f"window.scrollTo(0, {scroll_dist}); document.documentElement.scrollTop = {scroll_dist}; document.body.scrollTop = {scroll_dist};")
+                    human_sleep(2.0, 4.0)
+
+                    # 3. Scroll back to top
+                    page.mouse.wheel(0, -scroll_dist)
+                    page.evaluate("window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0;")
+                    human_sleep(1.5, 2.5)
                 except Exception:
                     pass
 
                 # ── React Hydration Wait ─────────────────────────────────────────
-                # LinkedIn is a React app. domcontentloaded fires when raw HTML is ready,
-                # but the JS that actually draws the buttons takes 1-4 more seconds.
                 page.wait_for_timeout(4000)
 
                 return True
@@ -296,7 +301,6 @@ class MessengerAgent:
         """Type a note character by character with random delays."""
         textarea = page.locator('textarea[name="message"]').first
         if not textarea.is_visible():
-            # Try alternative selectors
             textarea = page.locator('textarea').first
 
         textarea.click()
@@ -304,6 +308,7 @@ class MessengerAgent:
 
         for char in note:
             textarea.type(char, delay=get_typing_delay())
+
     def _verify_profile_criteria(self, page, name: str) -> bool:
         """
         Verify location is India, and connections >= 500 (or followers >= 500).
@@ -317,12 +322,12 @@ class MessengerAgent:
         try:
             top_card = page.locator("div.pv-top-card-layout__elements, div[class*='pv-top-card-layout'], main section, .pv-top-card").first
             try:
-                top_card.wait_for(state="visible", timeout=5000)
+                top_card.wait_for(state="visible", timeout=15000)
             except Exception:
                 pass
 
             top_card_text = ""
-            for _ in range(10):
+            for _ in range(12):
                 try:
                     txt = top_card.inner_text().lower()
                     if txt and ("connections" in txt or "follower" in txt or "india" in txt):
@@ -330,7 +335,7 @@ class MessengerAgent:
                         break
                 except Exception:
                     pass
-                page.wait_for_timeout(400)
+                page.wait_for_timeout(500)
 
             if not top_card_text:
                 try:
