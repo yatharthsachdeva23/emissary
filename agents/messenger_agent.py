@@ -261,22 +261,22 @@ class MessengerAgent:
                 if should_abort:
                     return False
 
-            # Human-like: scroll down the profile slowly
-            for _ in range(random.randint(2, 4)):
-                dist, dur = random_scroll_params()
-                page.evaluate(f"window.scrollBy(0, {dist})")
-                human_sleep(0.8, 2.0)
+                # Human-like: scroll down the profile slowly
+                for _ in range(random.randint(2, 4)):
+                    dist, dur = random_scroll_params()
+                    page.evaluate(f"window.scrollBy(0, {dist})")
+                    human_sleep(0.8, 2.0)
 
-            # Scroll back up
-            page.evaluate("window.scrollTo(0, 0)")
-            human_sleep(1, 2)
+                # Scroll back up
+                page.evaluate("window.scrollTo(0, 0)")
+                human_sleep(1, 2)
 
-            # ── React Hydration Wait ─────────────────────────────────────────
-            # LinkedIn is a React app. domcontentloaded fires when raw HTML is ready,
-            # but the JS that actually draws the buttons takes 1-4 more seconds.
-            page.wait_for_timeout(4000)
+                # ── React Hydration Wait ─────────────────────────────────────────
+                # LinkedIn is a React app. domcontentloaded fires when raw HTML is ready,
+                # but the JS that actually draws the buttons takes 1-4 more seconds.
+                page.wait_for_timeout(4000)
 
-            return True
+                return True
 
             except Exception as e:
                 if is_network_error(e) and attempt == 0:
