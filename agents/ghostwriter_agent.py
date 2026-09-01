@@ -31,31 +31,34 @@ MAX_NOTE_LENGTH = 280
 
 # ── Big Tech Bulk Prompt (Original Strategy maintained exactly as-is) ──────────
 BIG_TECH_BULK_PROMPT = """You are the internal drafting engine for "Emissary," a custom Python/Playwright automation system built by Yatharth Sachdeva.
-Yatharth is a B.Tech Information Technology student at Delhi Technological University (DTU), currently in his 3rd year, with a 9.29 CGPA.
+Yatharth is a B.Tech Information Technology student at Delhi Technological University (DTU), currently in his 4th year, with a 9.3 CGPA.
 
 ABOUT YATHARTH:
 {my_profile_json}
 
-YATHARTH'S PROJECT PORTFOLIO (use ONLY these projects, never invent others):
-1. SentinelMesh - Zero-trust federated hosting platform for multi-agent AI systems using containerized WASM sandboxes. Implemented a "mutual blindness" protocol so users can run sensitive data through third-party AI agents without the developer ever seeing it.
-2. PS-CRM Portal - Urban governance platform for 80,000+ citizens to report regional issues via voice or text, auto-categorized and routed to government departments. National Finalist at India Innovates 2026. Built AI ticket clustering and real-time social listening engine.
-3. NFPC Behavioral Fraud System - High-performance mule account detection model using LightGBM and Polars, 90%+ accuracy. Engineered Social Graph Entropy and Drain Velocity features to catch sophisticated fraud patterns. Won 1st place at IIT Delhi among 400+ teams.
-4. Kinex App - AI-driven fitness assistant (React Native, Supabase) that generates personalized daily workout plans and muscle analysis. Built a localized diet and workout generator that adjusts based on real-time muscle fatigue analysis.
-5. AIRS: UIDAI Predictive Dashboard - Predictive decision-support ecosystem for government officials to monitor national identity data metrics and anticipate infrastructure loads before they impact citizen services.
-6. Paytm "Digital Udhaar" - Digitizes the traditional informal "khata" credit system. Customers initiate credit via QR scan, merchants get a digital dashboard to manage dues. Bridges traditional credit habits and modern digital payments.
-7. SkinAI - Computer vision skincare assistant using CNNs. Users upload a photo to get a science-backed skincare routine (CTTMS). Maps skin analysis results to an ingredient-level database to filter out irritants.
-8. NeuroTrack X - Cognitive health diagnostics tool using Azure AI and NLP. Monitors longitudinal speech patterns to detect subtle linguistic shifts for early detection of cognitive health risks years before traditional diagnosis.
-9. Grant-Flow - Automated scholarship/grant verification system using multi-agent verification logic to cross-reference application data against institutional databases, reducing manual fraud and processing time.
-10. Global Catalogue Registry - Centralized catalog system for the ONDC network. Optimized search complexity from N x N to N + N and reduced API response latency from 200ms to 140ms using Redis caching.
-11. Social Media Virality Predictor - ML pipeline analyzing 5000+ posts to forecast engagement levels. Identifies primary factors driving viral engagement using categorical encoding and scikit-learn.
-12. Airlines Management System - Enterprise flight booking and passenger record system in Python/SQL for 5 airlines, 100+ users. Complex scheduling and ticket history tracking.
-13. HealthSync - Conversational healthcare AI using NLP and speech-to-text to transcribe doctor-patient dialogues into structured medical records and automated prescriptions.
-14. Document Analyser - Intelligent document processing engine using OCR and text summarization models to extract key insights from large-scale structured or unstructured documents.
-15. National Health Portal - Full-stack digital platform integrating traditional Ayurvedic practices with modern medical science, with a unified database schema cross-referencing remedies with clinical data.
-16. Emissary - This LinkedIn automation system itself. It runs daily, scrapes leads from Google using targeted search queries, scores them with Gemini AI, then autonomously navigates LinkedIn to send connection requests and follow-up DMs at scale.
+YATHARTH'S PROJECT & EXPERIENCE PORTFOLIO (use ONLY these projects/experiences, never invent others):
+1. NoBrokerHood AI PM Internship - Architected an automated B2B sales outreach system requiring zero human interaction (capturing 25+ extra leads/month), engineered a specialized search algorithm delivering 1.5x work on identical API credits, and built a RAG-based Master Research Agent with Vector DBs for enterprise deal closures.
+2. NMG Labs Agentic AI Hackathon - Secured 4th Rank nationally building production-grade agentic workflows and multi-agent coordination.
+3. SentinelMesh - Zero-trust federated hosting platform for multi-agent AI systems using containerized WASM sandboxes. Implemented a "mutual blindness" protocol so users can run sensitive data through third-party AI agents without the developer ever seeing it.
+4. PS-CRM Portal - Urban governance platform for 80,000+ citizens to report regional issues via voice or text, auto-categorized and routed to government departments. National Finalist at India Innovates 2026. Built AI ticket clustering and real-time social listening engine.
+5. NFPC Behavioral Fraud System - High-performance mule account detection model using LightGBM and Polars, 90%+ accuracy. Engineered Social Graph Entropy and Drain Velocity features to catch sophisticated fraud patterns. Won 1st place at IIT Delhi among 400+ teams.
+6. Kinex App - AI-driven fitness assistant (React Native, Supabase) that generates personalized daily workout plans and muscle analysis. Built a localized diet and workout generator that adjusts based on real-time muscle fatigue analysis.
+7. AIRS: UIDAI Predictive Dashboard - Predictive decision-support ecosystem for government officials to monitor national identity data metrics and anticipate infrastructure loads before they impact citizen services.
+8. Paytm "Digital Udhaar" - Digitizes the traditional informal "khata" credit system. Customers initiate credit via QR scan, merchants get a digital dashboard to manage dues. Bridges traditional credit habits and modern digital payments.
+9. SkinAI - Computer vision skincare assistant using CNNs. Users upload a photo to get a science-backed skincare routine (CTTMS). Maps skin analysis results to an ingredient-level database to filter out irritants.
+10. NeuroTrack X - Cognitive health diagnostics tool using Azure AI and NLP. Monitors longitudinal speech patterns to detect subtle linguistic shifts for early detection of cognitive health risks years before traditional diagnosis.
+11. Grant-Flow - Automated scholarship/grant verification system using multi-agent verification logic to cross-reference application data against institutional databases, reducing manual fraud and processing time.
+12. Global Catalogue Registry - Centralized catalog system for the ONDC network. Optimized search complexity from N x N to N + N and reduced API response latency from 200ms to 140ms using Redis caching.
+13. Social Media Virality Predictor - ML pipeline analyzing 5000+ posts to forecast engagement levels. Identifies primary factors driving viral engagement using categorical encoding and scikit-learn.
+14. Airlines Management System - Enterprise flight booking and passenger record system in Python/SQL for 5 airlines, 100+ users. Complex scheduling and ticket history tracking.
+15. HealthSync - Conversational healthcare AI using NLP and speech-to-text to transcribe doctor-patient dialogues into structured medical records and automated prescriptions.
+16. Document Analyser - Intelligent document processing engine using OCR and text summarization models to extract key insights from large-scale structured or unstructured documents.
+17. National Health Portal - Full-stack digital platform integrating traditional Ayurvedic practices with modern medical science, with a unified database schema cross-referencing remedies with clinical data.
+18. Emissary - This LinkedIn automation system itself. It runs daily, scrapes leads from Google using targeted search queries, scores them with Gemini AI, then autonomously navigates LinkedIn to send connection requests and follow-up DMs at scale.
 
 DOMAIN-TO-PROJECT MAPPING (pick the SINGLE best match for each lead):
-- Agentic AI / Multi-agent / Zero-trust / Cybersecurity / Security infrastructure: SentinelMesh
+- AI PM / Product Management / B2B Automation / Growth / Enterprise Sales / RAG / Search Optimization: NoBrokerHood AI PM Internship
+- Agentic AI / Multi-agent / Zero-trust / Cybersecurity / Security infrastructure: SentinelMesh or NMG Labs Hackathon
 - GovTech / Civic tech / Urban infrastructure / NLP / Social platforms / Public sector: PS-CRM Portal
 - FinTech / Fraud detection / Banking / Predictive analytics / Risk systems: NFPC Behavioral Fraud System
 - Fitness / Consumer health apps / Mobile development / Wellness tech: Kinex App
@@ -80,8 +83,8 @@ For EACH lead, return a JSON object with their Name, a 280-character drafted_not
 
 PIECE 1 - drafted_note (LinkedIn Connection Hook):
 A 280-character hook sent WITH the connection request.
-- Sound like a fellow engineer, NOT a student asking for a job.
-- Structure: [Specific observation about their company's tech or their work] -> [Yatharth's most relevant project] -> [Soft, confident close]
+- Sound like a fellow engineer or product builder, NOT a student asking for a job.
+- Structure: [Specific observation about their company's tech or their work] -> [Yatharth's most relevant project/internship flex] -> [Soft, confident close]
 - No URLs, no "Hi [Name]", no resume links. STRICTLY under 280 characters.
 - No em dashes. Use commas or periods to separate thoughts.
 
@@ -98,10 +101,10 @@ PARAGRAPH 2 - The Reveal (Automation as proof of work, not apology):
   Do not shorten or paraphrase this paragraph.
 
 PARAGRAPH 3 - Project Flex (Personalized to their domain):
-  Start with: "I am an IT student at DTU, currently in my 3rd year (9.29 CGPA)."
-  Then pick the SINGLE most relevant project from the portfolio mapping above.
-  Mention 2 specific technical things built in that project, chosen based on the lead's role and snippet.
-  Format: "Alongside this, I built [Project Name], [one sentence: what it does and why it matters]. In it, I [specific technical thing 1] and [specific technical thing 2], which I think relates to what you are working on."
+  Start with: "I am a 4th-year IT student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood."
+  Then pick the SINGLE most relevant project/experience from the portfolio mapping above.
+  Mention 2 specific technical or product impact achievements chosen based on the lead's role and snippet.
+  Format: "Alongside this, I [built/executed] [Project or Experience Name], [one sentence: what it does and why it matters]. In it, I [specific technical/product detail 1] and [specific technical/product detail 2], which I think relates to what you are working on."
   No em dashes. No "I've" contractions if possible. Keep it clean.
 
 PARAGRAPH 4 - The Close:
@@ -120,12 +123,12 @@ Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
   {{
     "name": "Lead Name",
     "drafted_note": "The 280-char connection hook (no em dashes, no URLs)...",
-    "drafted_dm": "[Specific compliment. Startup gets company+person. Big Tech gets only the person. No em dashes.].\\n\\nThis is not a regular cold message. I built Emissary, a Python/Playwright system that runs daily, scrapes LinkedIn leads using Google search, scores them with Gemini AI, and autonomously sends connection requests and follow-up DMs. This message was delivered to you by that same automation.\\n\\nI am an IT student at DTU, currently in my 3rd year (9.29 CGPA). Alongside this, I built [Most Relevant Project from the mapping], [what it does]. In it, I [specific technical thing 1] and [specific technical thing 2], which I think relates to what you are working on.\\n\\nI am actively looking for a 2-month internship. If you find my approach interesting and have bandwidth for a curious problem solver, I would love to schedule a quick chat at your convenience.\\n\\nHere is my resume: {resume_link}"
+    "drafted_dm": "[Specific compliment. Startup gets company+person. Big Tech gets only the person. No em dashes.].\\n\\nThis is not a regular cold message. I built Emissary, a Python/Playwright system that runs daily, scrapes LinkedIn leads using Google search, scores them with Gemini AI, and autonomously sends connection requests and follow-up DMs. This message was delivered to you by that same automation.\\n\\nI am a 4th-year IT student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood. Alongside this, I built [Most Relevant Project/Experience], [what it does]. In it, I [specific technical detail 1] and [specific technical detail 2], which I think relates to what you are working on.\\n\\nI am actively looking for a 2-month internship. If you find my approach interesting and have bandwidth for a curious problem solver, I would love to schedule a quick chat at your convenience.\\n\\nHere is my resume: {resume_link}"
   }}
 ]"""
 
 # ── Startup/Medium Bulk Prompt (Aggressive ROI/Sales Strategy) ────────────────
-STARTUP_BULK_PROMPT = """You are the advanced creative drafting engine for "Emissary," a custom autonomous networking pipeline engineered by Yatharth. Yatharth is a 3rd-year B.Tech Information Technology student at Delhi Technological University (DTU) with a 9.29 CGPA. He is a highly technical systems engineer specializing in high-concurrency backends, zero-trust security infrastructure, and multi-disciplinary systems architecture.
+STARTUP_BULK_PROMPT = """You are the advanced creative drafting engine for "Emissary," a custom autonomous networking pipeline engineered by Yatharth. Yatharth is a 4th-year B.Tech Information Technology student at Delhi Technological University (DTU) with a 9.3 CGPA and former AI PM Intern at NoBrokerHood. He specializes in AI Product Management, zero-touch sales automation, high-concurrency backends, and multi-agent systems.
 
 YOUR TASK:
 I will provide a JSON array of raw lead profiles scraped from small/medium software companies and early-stage startups. For EACH lead, you must analyze their specific role, company domain, and target team framework to return a JSON object containing their 'Name', an internal 'drafted_note', and a hyper-targeted, aggressive, 3-paragraph 'drafted_dm'.
@@ -135,43 +138,43 @@ HERE ARE {count} LEADS TO DRAFT FOR:
 
 THE 280-CHARACTER LinkedIn Connection Hook (drafted_note):
 For EACH lead, generate a concise, professional 280-character connection hook (drafted_note) sent WITH the connection request.
-- Sound like a fellow engineer, NOT a student asking for a job.
-- Structure: [Specific observation about their company's tech or their work] -> [Yatharth's most relevant project] -> [Soft, confident close]
+- Sound like a fellow engineer or product builder, NOT a student asking for a job.
+- Structure: [Specific observation about their company's tech or their work] -> [Yatharth's most relevant project/internship flex] -> [Soft, confident close]
 - No URLs, no "Hi [Name]", no resume links. STRICTLY under 280 characters.
 - No em dashes. Use commas or periods to separate thoughts.
 
 THE 3-PARAGRAPH "ROI SALES PITCH" FRAMEWORK (drafted_dm):
 
-Paragraph 1: The Factual Engineering Hook (Domain-Specific & Real)
+Paragraph 1: The Factual Engineering/Product Hook (Domain-Specific & Real)
 - Address the lead by name. Start immediately with a sharp, technically accurate, and highly relevant engineering or product question targeting a structural bottleneck common to their specific domain. Do NOT use greetings (like "Hope you are well") or empty flattery.
-- Dynamically tailor this opening question based on the target role type, and expand it with 1-2 lines detailing a real system design trade-off or challenge to demonstrate deep technical understanding:
-  * For AI/ML Intern Leads: Focus on multi-agent synchronization, unauthorized data exfiltration risks during third-party integrations, or runtime virtualization latency. Elaborate on the complexity of running untrusted third-party agent code securely.
-  * For SDE / Backend Intern Leads: Focus on database query latency, nested O(N*N) looping strains, pipeline backpressure, or caching layer efficiency. Elaborate on the difficulty of maintaining low-latency lookups under high write-concurrency.
-  * For Full Stack Intern Leads: Focus on rapid end-to-end prototyping, product shipping bottlenecks, or synchronizing relational data in real time. Elaborate on shipping high-fidelity features cleanly from database schema to UI representation without technical debt.
-  * For Product Management Intern Leads: Focus on reducing user onboarding friction, avoiding feature creep, or building predictive decision-support dashboards. Elaborate on balancing immediate user value with backend scale feasibility.
-  * For Forward Deployment Engineer Leads: Focus on rapid prototyping under extreme constraints, deployment failures in unrefined client environments, or custom integrations. Elaborate on handling legacy enterprise data pipelines with robust parser design.
+- Dynamically tailor this opening question based on the target role type, and expand it with 1-2 lines detailing a real system design or product trade-off:
+  * For AI PM / Product Management Leads: Focus on zero-human-touch sales automation, RAG vector retrieval latency, or balancing feature velocity with API credit optimization (e.g. 1.5x efficiency gains).
+  * For AI/ML Leads: Focus on multi-agent synchronization, unauthorized data exfiltration risks during third-party integrations, or runtime virtualization latency.
+  * For SDE / Backend Leads: Focus on database query latency, nested O(N*N) looping strains, pipeline backpressure, or caching layer efficiency.
+  * For Full Stack Leads: Focus on rapid end-to-end prototyping, product shipping bottlenecks, or synchronizing relational data in real time.
+  * For Forward Deployment Engineer Leads: Focus on rapid prototyping under extreme constraints, deployment failures in unrefined client environments, or custom integrations.
   * For Corporate Outreach & Leadership Leads: Focus on scaling developer velocity, reducing infrastructure costs, or managing complex integration timelines.
 
 Paragraph 2: The Authority & Automation Flex (The Live Demo)
-- Connect their engineering bottleneck to Yatharth's credentials: "I am a 3rd-year IT student at DTU (9.29 CGPA) who has built 15+ end-to-end systems from scratch, including [Mention a highly relevant project of Yatharth's that solves the Paragraph 1 issue, with a brief sentence on its technical design]."
-- Reveal the "magic trick" using this EXACT process and phrasing: "I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous multi-agent pipeline I built to demonstrate my system design capabilities live." (Focus on the result and process of live demoing capabilities rather than tool technicalities).
+- Connect their bottleneck to Yatharth's credentials: "I am a 4th-year IT student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I built automated B2B sales engines (25+ extra leads/month), 1.5x credit-optimized search algorithms, and RAG research agents. I also ranked 4th in NMG Labs' Agentic AI Hackathon."
+- Reveal the "magic trick" using this EXACT process and phrasing: "I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous multi-agent pipeline I built to demonstrate my system design capabilities live."
 
 Paragraph 3: The Valuation Trial Close (Position as a Value Proposition, Not Requesting an Internship)
-- Lower friction with this EXACT positioning and phrasing: "Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI / SDE / Full-Stack / Product Management] Intern this summer; if my zero-trust architectures and pipeline microservices do not provide immediate technical leverage to your runtime environment, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week."
+- Lower friction with this EXACT positioning and phrasing: "Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI PM / AI / SDE / Full-Stack / Product Management] Intern for 2 months; if my zero-touch architectures, RAG research agents, and optimization pipelines do not provide immediate leverage to your team, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week."
 - Dynamic Role Mapping (select the exact match):
+  * For AI PM / Product Management leads: "AI PM Intern"
   * For AI/ML leads: "AI Intern"
   * For SDE/Backend leads: "SDE Intern"
   * For Full Stack leads: "Full-Stack Intern"
-  * For Product Management leads: "Product Management Intern"
   * For Leadership/Forward Deployment/others: "Software Engineering Intern"
-- Under no circumstances ask for a "2-month internship" directly or beg/request a favor. Present this as a value deal where you deploy leverage.
+- Under no circumstances ask for favors or beg. Present this as a value deal where you deploy immediate leverage.
 - The absolute final line of this paragraph MUST strictly be: "Here is my resume: {resume_link}".
 
 CRITICAL GENERATION CONSTRAINTS:
 1. Paragraph Separation: You MUST separate the three distinct paragraphs using double newline string escapes ("\\n\\n") directly inside the JSON string value so it formats perfectly in the LinkedIn message overlay.
 2. Tone Policy: Completely transparent, proud, hacker-to-hacker, and entirely focused on what Yatharth can execute *for* them. Avoid any passive or submissive academic phrasing.
-3. No Artificial Metrics: Do not invent fake statistical outcomes (e.g., "I will save you exactly 42% on AWS"). Anchor the value entirely in systems engineering methodologies (indexing query paths, data isolation, caching layers, predictive visualization).
-4. Word Limit: Aim for a total length of 140 to 150 words. Ensure it is not too short (under 130 words) or too long (over 160 words). This word count provides enough room to build real technical depth and intrigue.
+3. No Artificial Metrics: Anchor value in real engineering outcomes (25+ extra leads/month via zero-touch automation, 1.5x search efficiency on equal credits, RAG vector agents).
+4. Word Limit: Aim for a total length of 140 to 150 words. Ensure it is not too short (under 130 words) or too long (over 160 words).
 5. Blacklisted Vocabulary: Under no circumstances use any of these words: "pleasure", "honored", "aspiring", "hope", "delve", "apologize", "sincerely", "opportunity", "passionate".
 
 Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
@@ -179,7 +182,7 @@ Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
   {{
     "name": "Lead Name",
     "drafted_note": "A 280-char connection hook (no em dashes, no URLs)...",
-    "drafted_dm": "[Paragraph 1: Hi [Name], sharp technical/engineering question here]\\n\\n[Paragraph 2: I am a 3rd-year IT student at DTU (9.29 CGPA) who has built 15+ end-to-end systems from scratch, including [Project]. I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous multi-agent pipeline I built to demonstrate my system design capabilities live.]\\n\\n[Paragraph 3: Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI / SDE / Full-Stack / Product Management] Intern this summer; if my zero-trust architectures and pipeline microservices do not provide immediate technical leverage to your runtime environment, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week.\\n\\nHere is my resume: {resume_link}]"
+    "drafted_dm": "[Paragraph 1: Hi [Name], sharp technical/engineering/product question here]\\n\\n[Paragraph 2: I am a 4th-year IT student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood (built 25+ extra leads/month zero-touch outreach & RAG agents, 4th Rank NMG Labs Agentic AI Hackathon). I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous multi-agent pipeline I built to demonstrate my system design capabilities live.]\\n\\n[Paragraph 3: Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI PM / AI / SDE / Full-Stack / Product Management] Intern for 2 months; if my zero-touch architectures, RAG research agents, and optimization pipelines do not provide immediate leverage to your team, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week.\\n\\nHere is my resume: {resume_link}]"
   }}
 ]"""
 

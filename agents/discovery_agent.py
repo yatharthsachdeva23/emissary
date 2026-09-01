@@ -36,18 +36,20 @@ SERPER_URL = "https://google.serper.dev/search"
 # These are broad, role-targeted profile queries using tbs=qdr:m (past month)
 # so results rotate daily as Google indexes newly updated profiles.
 STATIC_PROFILE_QUERIES = [
-    # Decision-makers at AI/ML startups
+    # Decision-makers at AI/ML startups & Product Leadership
     ('site:linkedin.com/in "Co-Founder" OR "CTO" "AI" OR "ML" "startup" "India" -intern -student', "qdr:m"),
     ('site:linkedin.com/in "Engineering Manager" OR "VP Engineering" "AI" OR "ML" "India" -intern', "qdr:m"),
+    ('site:linkedin.com/in "Head of Product" OR "VP Product" OR "Director of Product" "AI" OR "SaaS" "India" -intern', "qdr:m"),
+    ('site:linkedin.com/in "Product Manager" OR "Lead Product Manager" "AI" OR "LLM" "India" -intern', "qdr:m"),
     ('site:linkedin.com/in "Tech Lead" OR "Lead Engineer" "backend" OR "AI" "India" -intern', "qdr:m"),
     ('site:linkedin.com/in "Head of Engineering" OR "Principal Engineer" "India" -intern', "qdr:m"),
     ('site:linkedin.com/in "Founder" OR "CTO" "Fintech" OR "SaaS" OR "DevTools" "India" -intern', "qdr:m"),
     # YC / funded founders
     ('site:linkedin.com/in "founder" "YC" OR "Y Combinator" "India" -intern', None),
     ('site:linkedin.com/in "CTO" OR "Co-Founder" "Series A" OR "Series B" OR "Seed" "India" -intern', None),
-    # Big Tech senior engineers (often mentors / refer interns)
+    # Big Tech senior engineers & Product Leaders (often mentors / refer interns)
     ('site:linkedin.com/in "Senior Engineer" OR "Staff Engineer" "Google" OR "Microsoft" OR "Amazon" "India" -intern', None),
-    ('site:linkedin.com/in "Engineering Manager" "Uber" OR "Atlassian" OR "Stripe" OR "Razorpay" "India" -intern', None),
+    ('site:linkedin.com/in "Engineering Manager" OR "Group Product Manager" "Uber" OR "Atlassian" OR "Stripe" OR "Razorpay" "India" -intern', None),
 ]
 
 # Active hiring signals — post queries use tbs=qdr:w (past week) for maximum freshness
