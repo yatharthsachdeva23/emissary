@@ -732,10 +732,64 @@ class MessengerAgent:
                         except Exception:
                             send_blank_btn.evaluate("node => node.click()")
 
-                        page.wait_for_timeout(2000)
-                        console.print(f"  [bold green]  ✓ Connection request successfully sent to {name}![/bold green]")
-                        human_sleep(2.0, 4.0, "After send")
-                        return True, "Request Sent"
+                        # ── STRICT POST-CLICK VERIFICATION ─────────────────────────────
+                        page.wait_for_timeout(2500)
+
+                        # Check 1: Detect weekly invitation limit or restriction toast/modal
+                        page_text_lower = ""
+                        try:
+                            page_text_lower = page.locator("body").inner_text().lower()
+                        except Exception:
+                            pass
+
+                        if "weekly invitation limit" in page_text_lower or "weekly limit" in page_text_lower or "reached the weekly limit" in page_text_lower:
+                            console.print(f"  [bold red]  🚨 WEEKLY LIMIT DETECTED: LinkedIn weekly invitation limit reached. ABORTING connection.[/bold red]")
+                            try:
+                                page.keyboard.press("Escape")
+                            except Exception:
+                                pass
+                            return False, "weekly_limit_reached"
+
+                        if "enter email" in page_text_lower or "email address to connect" in page_text_lower:
+                            console.print(f"  [yellow]  ⚠ Profile requires email address to connect. Invite not sent.[/yellow]")
+                            try:
+                                page.keyboard.press("Escape")
+                            except Exception:
+                                pass
+                            return False, "email_required"
+
+                        # Check 2: Verify the modal is closed
+                        modal_still_open = False
+                        try:
+                            if page.locator("div[role='dialog'] button[aria-label='Send without a note'], div[role='dialog'] button:has-text('Send without a note')").first.is_visible(timeout=1000):
+                                modal_still_open = True
+                        except Exception:
+                            pass
+
+                        if modal_still_open:
+                            console.print(f"  [yellow]  ⚠ Modal still open after Enter. Trying JS click fallback...[/yellow]")
+                            try:
+                                send_blank_btn.evaluate("node => node.click()")
+                                page.wait_for_timeout(2000)
+                            except Exception:
+                                pass
+
+                        # Check 3: Final confirmation — top card shows 'Pending' or modal closed
+                        is_pending = False
+                        try:
+                            pending_loc = page.locator("button:has-text('Pending'), [aria-label*='Pending'], [aria-label*='pending'], div:has-text('Invitation sent'), div:has-text('Invite sent')").first
+                            if pending_loc.is_visible(timeout=2000):
+                                is_pending = True
+                        except Exception:
+                            pass
+
+                        if is_pending or not modal_still_open:
+                            console.print(f"  [bold green]  ✓ Connection request VERIFIED SENT to {name}![/bold green]")
+                            human_sleep(2.0, 4.0, "After send")
+                            return True, "Request Sent"
+                        else:
+                            console.print(f"  [yellow]  ⚠ Could not verify send confirmation for {name}.[/yellow]")
+                            return False, "send_unverified"
 
                 except Exception as e:
                     console.print(f"  [dim]  Attempt {attempt} for {name} error: {e}[/dim]")
