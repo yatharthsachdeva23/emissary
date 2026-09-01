@@ -144,7 +144,7 @@ Raw leads ({count} items):
 class DiscoveryAgent:
     def __init__(self):
         self.serper_key = os.getenv("SERPER_API_KEY", "")
-        self.daily_limit = int(os.getenv("DAILY_SEND_LIMIT", "20"))
+        self.daily_limit = int(os.getenv("DAILY_SEND_LIMIT", "50"))
 
     # ─── Core Search ──────────────────────────────────────────────────────────
 
