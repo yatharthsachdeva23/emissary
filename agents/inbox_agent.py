@@ -50,6 +50,30 @@ def _normalize_name(raw: str) -> str:
     return " ".join(raw.lower().split()).strip()
 
 
+def extract_linkedin_handle(url: str) -> str:
+    """
+    Extracts the unique handle/slug from a LinkedIn profile URL.
+    Examples:
+        'https://in.linkedin.com/in/deepak-kumar-987654' -> 'deepak-kumar-987654'
+        'https://www.linkedin.com/in/deepak-kumar-987654/?miniProfile=...' -> 'deepak-kumar-987654'
+        '/in/deepak-kumar-987654/' -> 'deepak-kumar-987654'
+    """
+    if not url:
+        return ""
+    url = str(url).strip()
+    if "?" in url:
+        url = url.split("?")[0]
+    url = url.rstrip("/")
+    parts = [p for p in url.split("/") if p]
+    if "in" in parts:
+        idx = parts.index("in")
+        if idx + 1 < len(parts):
+            return parts[idx + 1].lower()
+    if parts:
+        return parts[-1].lower()
+    return url.lower()
+
+
 class InboxAgent:
     def __init__(self):
         self._playwright = None
@@ -377,6 +401,16 @@ class InboxAgent:
                 pass
                 
             self._human_sleep(3, 5)
+
+            # Safety Handle Verification: Ensure settled page handle matches target lead's handle
+            settled_handle = extract_linkedin_handle(page.url)
+            target_handle = extract_linkedin_handle(url)
+            if settled_handle and target_handle and settled_handle != target_handle:
+                console.print(
+                    f"  [bold red]✘ CRITICAL SAFETY GUARD: Profile handle mismatch! "
+                    f"Expected '{target_handle}' but page settled on '{settled_handle}'. Aborting DM.[/bold red]"
+                )
+                return False
 
             # ── Close any lingering LinkedIn chat panels from previous DMs ──────
             # After each send, or upon page load, LinkedIn might open chat bubbles.
