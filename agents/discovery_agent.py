@@ -62,13 +62,13 @@ STATIC_POST_QUERIES = [
 ]
 
 # ─── Layer 2: LinkedIn Jobs → Leaders ─────────────────────────────────────────
-# Job posting queries (past week) to discover which companies are actively hiring
+# Job posting queries (past week) to discover which companies are actively hiring PMs
 JOB_SOURCING_QUERIES = [
-    'site:linkedin.com/jobs/view "software engineer" "India"',
-    'site:linkedin.com/jobs/view "AI" OR "machine learning" "India"',
-    'site:linkedin.com/jobs/view "backend engineer" OR "SDE" "India"',
-    'site:linkedin.com/jobs/view "full stack engineer" OR "developer" "India"',
-    'site:linkedin.com/jobs/view "data engineer" OR "engineer" "India"',
+    'site:linkedin.com/jobs/view "Product Manager" "India"',
+    'site:linkedin.com/jobs/view "AI Product Manager" OR "AI PM" "India"',
+    'site:linkedin.com/jobs/view "Associate Product Manager" OR "APM" "India"',
+    'site:linkedin.com/jobs/view "Product Lead" OR "Group Product Manager" "India"',
+    'site:linkedin.com/jobs/view "Product Analyst" OR "Growth PM" "India"',
 ]
 
 COMPANY_EXTRACTION_PROMPT = """You are a parsing assistant. Extract unique company names from the following LinkedIn job posting titles and snippets.
@@ -79,7 +79,7 @@ Raw postings:
 Rules:
 - Only extract companies that appear to be operating or hiring in India.
 - Skip global staffing agencies (e.g., Jobgether, Huptech HR, Converse Placement).
-- Skip very large multinational corporations (Google, Amazon, Microsoft, Apple, Meta, Flipkart, Swiggy, Zomato) — we already target their engineers in separate queries.
+- Skip very large multinational corporations (Google, Amazon, Microsoft, Apple, Meta, Flipkart, Swiggy, Zomato) — we already target their product leaders in separate queries.
 - Focus on startups, scale-ups, and growth-stage tech companies.
 - Return at most 12 company names.
 
@@ -89,18 +89,18 @@ Return ONLY a JSON array of strings:
 ```"""
 
 # ─── Layer 3: Dynamic AI-generated dorks ──────────────────────────────────────
-DYNAMIC_DORK_PROMPT = """You are a lead-generation assistant for an internship outreach tool.
+DYNAMIC_DORK_PROMPT = """You are a lead-generation assistant for an internship outreach tool targeting Product Management roles.
 
 Candidate Profile:
 {profile_summary}
 
-Generate exactly 12 unique Google search dorks to find high-value LinkedIn profiles of decision-makers who could hire this candidate as a software engineering intern.
+Generate exactly 12 unique Google search dorks to find high-value LinkedIn profiles of decision-makers (Heads of Product, VP of Product, Chief Product Officers, Group PMs, AI PM Leads, Founders) who could hire this candidate for an AI Product Management / APM / PM internship.
 
 Rules:
 - Mix profile queries (site:linkedin.com/in) and post queries (site:linkedin.com/posts).
-- Use varied Indian cities: Bangalore, Hyderabad, Mumbai, Pune, Delhi, Noida, Gurgaon, Chennai, remote.
-- Use varied technologies matching the candidate: WASM, Agentic AI, Multi-Agent Systems, LLM, RAG, C++, Python, backend, FinTech, Cybersecurity, GovTech, DevTools.
-- Use varied roles: CTO, Co-Founder, Engineering Manager, VP Engineering, Tech Lead, Principal Engineer, Senior SDE.
+- Target regions: Delhi NCR, Gurgaon, Noida, Bangalore, Remote.
+- Use varied Product & AI domains matching candidate: AI Product Management, Agentic AI, RAG Systems, Vector DBs, Search Optimization, B2B Automation, Funnel Growth, Urban Governance, Predictive Analytics.
+- Use varied roles: Head of Product, VP Product, Director of Product, Chief Product Officer, Founder, Co-Founder, Lead PM, Group Product Manager, Product Lead.
 - NEVER hardcode a specific year. NEVER use "intern" or "student" as required keywords (only as exclusions: -intern -student).
 - Each query must be meaningfully different — avoid repeating the same role+tech combo.
 
