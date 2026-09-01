@@ -190,12 +190,15 @@ class MessengerAgent:
             console.print(f"[dim]  Detected LinkedIn domain: {self._linkedin_base}[/dim]")
 
         # Simulate reading the feed: scroll down, then back up
-        page.evaluate("window.scrollBy(0, 500)")
-        human_sleep(1.5, 3.0)
-        page.evaluate("window.scrollBy(0, 400)")
-        human_sleep(1.5, 2.5)
-        page.evaluate("window.scrollTo(0, 0)")
-        human_sleep(1, 2)
+        try:
+            page.evaluate("window.scrollBy(0, 500)")
+            human_sleep(1.5, 3.0)
+            page.evaluate("window.scrollBy(0, 400)")
+            human_sleep(1.5, 2.5)
+            page.evaluate("window.scrollTo(0, 0)")
+            human_sleep(1, 2)
+        except Exception:
+            pass
 
         if "login" in page.url or "authwall" in page.url or "checkpoint" in page.url:
             console.print("[red]Session expired or checkpoint detected. Run: python main.py --setup-session[/red]")
@@ -262,14 +265,17 @@ class MessengerAgent:
                     return False
 
                 # Human-like: scroll down the profile slowly
-                for _ in range(random.randint(2, 4)):
-                    dist, dur = random_scroll_params()
-                    page.evaluate(f"window.scrollBy(0, {dist})")
-                    human_sleep(0.8, 2.0)
+                try:
+                    for _ in range(random.randint(2, 4)):
+                        dist, dur = random_scroll_params()
+                        page.evaluate(f"window.scrollBy(0, {dist})")
+                        human_sleep(0.8, 2.0)
 
-                # Scroll back up
-                page.evaluate("window.scrollTo(0, 0)")
-                human_sleep(1, 2)
+                    # Scroll back up
+                    page.evaluate("window.scrollTo(0, 0)")
+                    human_sleep(1, 2)
+                except Exception:
+                    pass
 
                 # ── React Hydration Wait ─────────────────────────────────────────
                 # LinkedIn is a React app. domcontentloaded fires when raw HTML is ready,
