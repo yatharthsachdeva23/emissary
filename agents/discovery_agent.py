@@ -36,20 +36,16 @@ SERPER_URL = "https://google.serper.dev/search"
 # These are broad, role-targeted profile queries using tbs=qdr:m (past month)
 # so results rotate daily as Google indexes newly updated profiles.
 STATIC_PROFILE_QUERIES = [
-    # CEOs, Founders, Co-Founders & COOs
+    # CEOs, Founders, Co-Founders & COOs (Building, Brand, Growth)
     ('site:linkedin.com/in "CEO" OR "Founder" OR "Co-Founder" OR "COO" "building" "product" OR "brand" "India" -intern', "qdr:m"),
     ('site:linkedin.com/in "CEO" OR "Co-Founder" "business" OR "growth" "India" -intern', "qdr:m"),
-    # Product, Brand, Marketing & Growth Managers & VPs
+    # Product, Brand, Marketing & Growth Leaders
     ('site:linkedin.com/in "VP Product" OR "VP Growth" OR "VP Marketing" "building" "India" -intern', "qdr:m"),
     ('site:linkedin.com/in "Head of Product" OR "Head of Growth" OR "Head of Brand" "India" -intern', "qdr:m"),
     ('site:linkedin.com/in "Product Manager" OR "Brand Manager" OR "Marketing Manager" "growth" "India" -intern', "qdr:m"),
     ('site:linkedin.com/in "Growth Manager" OR "Product Lead" OR "Group Product Manager" "India" -intern', "qdr:m"),
-    # YC / funded founders & executives
-    ('site:linkedin.com/in "CEO" OR "Founder" OR "COO" "YC" OR "Y Combinator" "building" "India" -intern', None),
-    ('site:linkedin.com/in "CEO" OR "Co-Founder" OR "VP" "Series A" OR "Series B" OR "Seed" "India" -intern', None),
     # Big Tech product, brand & marketing leaders
-    ('site:linkedin.com/in "Director of Product" OR "Director of Marketing" "Google" OR "Microsoft" OR "Amazon" "India" -intern', None),
-    ('site:linkedin.com/in "Group Product Manager" OR "Marketing Director" "Uber" OR "Atlassian" OR "Stripe" OR "Razorpay" "India" -intern', None),
+    ('site:linkedin.com/in "Group Product Manager" OR "Director of Product" "Google" OR "Microsoft" OR "Amazon" "India" -intern', None),
 ]
 
 # Active hiring signals — post queries use tbs=qdr:w (past week) for maximum freshness
@@ -57,18 +53,12 @@ STATIC_POST_QUERIES = [
     ('site:linkedin.com/posts "we are hiring" "Product Manager" OR "Brand Manager" OR "Marketing Manager" "India" -intern', "qdr:w"),
     ('site:linkedin.com/posts "hiring" "APM" OR "Product Lead" OR "Growth Manager" "building" "India" -intern', "qdr:w"),
     ('site:linkedin.com/posts "looking for" "Product Manager" OR "AI PM" "business" OR "brand" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "hiring" "Marketing Manager" OR "Product Analyst" OR "Growth PM" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "hiring" "AI Product Manager" OR "Brand Manager" "startup" "India" -intern', "qdr:w"),
 ]
 
-# ─── Layer 2: LinkedIn Jobs → Leaders ─────────────────────────────────────────
-# Job posting queries (past week) to discover which companies are actively hiring PMs
+# ─── Layer 2: LinkedIn Jobs → Leaders (Tightened to 2-3 queries max) ─────────
 JOB_SOURCING_QUERIES = [
-    'site:linkedin.com/jobs/view "Product Manager" "growth" OR "business" "India"',
-    'site:linkedin.com/jobs/view "AI Product Manager" OR "AI PM" "building" "India"',
-    'site:linkedin.com/jobs/view "Marketing Manager" OR "Brand Manager" "India"',
-    'site:linkedin.com/jobs/view "Associate Product Manager" OR "APM" "India"',
-    'site:linkedin.com/jobs/view "Product Lead" OR "Growth Manager" "India"',
+    'site:linkedin.com/jobs/view "Product Manager" OR "AI PM" "growth" OR "building" "India"',
+    'site:linkedin.com/jobs/view "Brand Manager" OR "Growth Manager" OR "APM" "India"',
 ]
 
 COMPANY_EXTRACTION_PROMPT = """You are a parsing assistant. Extract unique company names from the following LinkedIn job posting titles and snippets.
@@ -79,16 +69,16 @@ Raw postings:
 Rules:
 - Only extract companies that appear to be operating or hiring in India.
 - Skip global staffing agencies (e.g., Jobgether, Huptech HR, Converse Placement).
-- Skip very large multinational corporations (Google, Amazon, Microsoft, Apple, Meta, Flipkart, Swiggy, Zomato) — we already target their product leaders in separate queries.
+- Skip very large multinational corporations (Google, Amazon, Microsoft, Apple, Meta, Flipkart, Swiggy, Zomato).
 - Focus on startups, scale-ups, and growth-stage tech companies.
-- Return at most 12 company names.
+- Return at most 1 company name.
 
 Return ONLY a JSON array of strings:
 ```json
-["company1", "company2"]
+["company1"]
 ```"""
 
-# ─── Layer 3: Dynamic AI-generated dorks ──────────────────────────────────────
+# ─── Layer 3: Dynamic AI-generated dorks (12 queries) ─────────────────────────
 DYNAMIC_DORK_PROMPT = """You are a lead-generation assistant for an internship outreach tool targeting Product Management, Brand, and Growth leadership roles.
 
 Candidate Profile:
@@ -302,8 +292,8 @@ class DiscoveryAgent:
         progress.update(task, total=progress._tasks[task].total + len(companies),
                         description="Layer 2: Searching for leaders...")
         for company in companies:
-            q = (f'site:linkedin.com/in "CTO" OR "Co-Founder" OR "Founder" OR '
-                 f'"Engineering Manager" OR "Tech Lead" "{company}" "India" -intern')
+            q = (f'site:linkedin.com/in "CEO" OR "Founder" OR "Co-Founder" OR "COO" OR '
+                 f'"Head of Product" OR "VP Product" OR "Product Manager" OR "Brand Manager" "{company}" "India" -intern')
             leader_results.extend(self._serper_search(q))
             progress.advance(task)
 
