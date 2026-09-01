@@ -98,23 +98,45 @@ class MessengerAgent:
             Stealth_cls().apply_stealth_sync(page)
             page.goto(LINKEDIN_LOGIN)
 
-            console.print("\n[cyan]Browser opened. Log in and then press Enter here...[/cyan]")
-            input()
+            console.print("\n[bold cyan]Browser window is open. Please log into LinkedIn now.[/bold cyan]")
+            console.print("[dim]The system will automatically detect when you log in and reach your feed...[/dim]")
+            console.print("[dim]Waiting for login (or return here and press Enter)...[/dim]\n")
+
+            # Auto-detection loop: checks every second for up to 5 minutes
+            import time
+            login_succeeded = False
+            for _ in range(300):
+                try:
+                    cookies = context.cookies()
+                    has_auth = any(c.get("name") == "li_at" for c in cookies)
+                    curr_url = page.url.lower()
+
+                    if has_auth or "feed" in curr_url or "mynetwork" in curr_url:
+                        login_succeeded = True
+                        break
+                    time.sleep(1.0)
+                except Exception:
+                    break
 
             storage_state = context.storage_state()
             has_auth_cookie = any(c.get("name") == "li_at" for c in storage_state.get("cookies", []))
             
-            # Check if login was successful
-            if has_auth_cookie or "feed" in page.url or "mynetwork" in page.url:
+            if login_succeeded or has_auth_cookie:
                 DATA_DIR.mkdir(exist_ok=True)
-                with open(SESSION_PATH, "w") as f:
-                    json.dump(storage_state, f)
-                console.print("[green]✓ Session saved to linkedin_session.json[/green]")
-                browser.close()
+                with open(SESSION_PATH, "w", encoding="utf-8") as f:
+                    json.dump(storage_state, f, indent=2)
+                console.print("[bold green]✓ SUCCESS: LinkedIn session cookies captured and saved to data/linkedin_session.json![/bold green]")
+                try:
+                    browser.close()
+                except Exception:
+                    pass
                 return True
             else:
-                console.print(f"[red]Login may not have completed. Current URL: {page.url}[/red]")
-                browser.close()
+                console.print(f"[red]Login was not completed within the timeout period. Current URL: {page.url}[/red]")
+                try:
+                    browser.close()
+                except Exception:
+                    pass
                 return False
 
     def _load_session_context(self, playwright):
@@ -326,6 +348,55 @@ class MessengerAgent:
             console.print(f"  [dim]  ⚠ Could not verify connections for {name}: {e}[/dim]")
             return True
 
+    def _is_safe_top_card_button(self, page, element) -> bool:
+        """
+        Anti-Misclick Guard: Ensures the element is strictly inside the target profile's
+        top card section and NOT in sidebar recommendation modules ('More profiles for you', 
+        'People also viewed', aside). Also enforces strict x/y positional bounds.
+        """
+        try:
+            if not element.is_visible(timeout=500):
+                return False
+
+            is_safe = element.evaluate("""
+                el => {
+                    // 1. Strict exclusion of recommendation/sidebar containers
+                    const badContainer = el.closest(
+                        'aside, .scaffold-layout__aside, ' +
+                        '[aria-label*="More profiles"], [aria-label*="People also viewed"], ' +
+                        '[aria-label*="People you may know"], ' +
+                        '.pv-browse-map, .discovery-titles, [data-test-id*="sidebar"]'
+                    );
+                    if (badContainer) return false;
+
+                    // 2. Walk up parents to check for recommendation section titles
+                    let parentSection = el.closest('section, div');
+                    while (parentSection && parentSection !== document.body) {
+                        const h2 = parentSection.querySelector('h2, h3');
+                        if (h2) {
+                            const title = (h2.innerText || '').toLowerCase();
+                            if (title.includes('more profiles') || 
+                                title.includes('people also viewed') || 
+                                title.includes('people you may know')) {
+                                return false;
+                            }
+                        }
+                        if (parentSection.tagName === 'MAIN' || parentSection.tagName === 'BODY') break;
+                        parentSection = parentSection.parentElement;
+                    }
+
+                    // 3. Positional check (main profile top card action buttons are always at top-left)
+                    const r = el.getBoundingClientRect();
+                    if (r.x > 750 || r.y > 800) return false;
+                    if (r.width === 0 || r.height === 0) return false;
+
+                    return true;
+                }
+            """)
+            return is_safe
+        except Exception:
+            return False
+
     def _send_connection(self, page, lead: dict, ghost_run: bool = False) -> tuple[bool, str]:
         """
         Find and click the Connect button, handle the modal, and 'send'.
@@ -340,88 +411,67 @@ class MessengerAgent:
                 return False, "already_pending"
 
             # --- 2. THE CONNECT BUTTON HUNT ---
-            # ── STRATEGY ─────────────────────────────────────────────────────────
-            # LinkedIn has TWO profile layouts:
-            #
-            # TYPE A — Standard (Non-Creator):
-            #   UI: [Connect] [Message] [···]   OR   [Message] [Connect] [···]
-            #   DOM: <a href="/preload/custom-invite/"> or <button aria-label="Invite...">
-            #
-            # TYPE B — Creator (3-button): Follow is primary, Connect is in ···
-            #   UI: [Follow] [Message] [···]
-            #
-            # TYPE C — Creator with website (4-button): Follow is primary
-            #   UI: [Follow] [Message] [Visit my website] [···]
-            #
-            # SAFETY CRITICAL: LinkedIn's "More profiles for you" RIGHT COLUMN
-            # renders inside <main>, NOT <aside>. Simple DOM-tree checks are NOT
-            # enough. We use a JS bounding-rect check: the profile action buttons
-            # are always in the LEFT/CENTER column (x < ~700px on a 1280px viewport).
-            # Sidebar cards are always rendered at x > 900px. This positional check
-            # is viewport-based and immune to LinkedIn's obfuscated class names.
-            # ─────────────────────────────────────────────────────────────────────
-            # Locate the main column container first, which is .scaffold-layout__main-column
-            main_col = page.locator(".scaffold-layout__main-column, .scaffold-layout__main .scaffold-layout__main-column").first
+            top_card = page.locator(
+                ".scaffold-layout__main-column section:has(h1), "
+                ".scaffold-layout__main section:has(h1), "
+                "main section:has(h1), "
+                ".pv-top-card, "
+                ".profile-topcard"
+            ).first
             
-            if main_col.is_visible(timeout=2000):
-                main_area = main_col
+            if top_card.is_visible(timeout=2000):
+                search_area = top_card
             else:
-                main_area = page.locator("main").first
-                if not main_area.is_visible(timeout=1000):
-                    main_area = page
+                search_area = page.locator(".scaffold-layout__main-column, main").first
 
             candidates = []
 
             # PATH 1: TYPE A — Direct custom-invite href or aria-label
-            direct_btn = main_area.locator(
+            direct_btns = search_area.locator(
                 "a[href*='/preload/custom-invite/'], "
                 "a[href*='custom-invite'], "
                 "button[aria-label*='Invite'][aria-label*='connect'], "
                 "a[aria-label*='Invite'][aria-label*='connect']"
-            ).first
-            if direct_btn.is_visible(timeout=1500):
-                candidates.append((direct_btn, "direct"))
+            ).all()
+            for btn in direct_btns:
+                if self._is_safe_top_card_button(page, btn):
+                    candidates.append((btn, "direct"))
+                    break
 
             # PATH 2: Text-based Connect button
             try:
-                all_connect = main_area.locator(
+                all_connect = search_area.locator(
                     "button:has(span:text-is('Connect')), "
                     "a:has(span:text-is('Connect')), "
                     "button:text-is('Connect'), "
                     "a:text-is('Connect')"
                 ).all()
                 for btn in all_connect:
-                    try:
-                        if not btn.is_visible():
-                            continue
-                        # Bounding-rect check: profile action buttons are always
-                        # in the left/center column. Sidebar starts at x > 900px.
-                        rect = btn.evaluate(
-                            "el => { const r = el.getBoundingClientRect(); "
-                            "return {x: r.x, width: r.width}; }"
-                        )
-                        if rect and rect.get("x", 9999) < 700:
+                    if self._is_safe_top_card_button(page, btn):
+                        if not any(c[0] == btn for c in candidates):
                             candidates.append((btn, "direct"))
-                    except Exception:
-                        continue
             except Exception:
                 pass
 
             # PATH 3: ··· (More) dropdown — for Creator profiles
             try:
-                more_selector = (
-                    "button[aria-label='More'], "
-                    "button[aria-label='More actions']"
-                )
-                # Search specifically in main_area to avoid sidebar More buttons
-                all_more_btns = main_area.locator(more_selector).all()
-                for more_btn in all_more_btns:
-                    try:
-                        if not more_btn.is_visible():
-                            continue
-                        candidates.append((more_btn, "dropdown"))
-                    except Exception:
-                        continue
+                more_selectors = [
+                    "button[aria-label='More actions']",
+                    "button[aria-label='More']",
+                    "button[aria-label*='More actions']",
+                    "button[aria-label^='More']",
+                    "button:has(svg[data-test-icon*='overflow'])",
+                    "button:has(svg[data-test-icon='overflow-web-horizontal-small'])",
+                    "button.artdeco-dropdown__trigger",
+                    "button:has-text('More')",
+                    "button:has-text('...')",
+                ]
+                for sel in more_selectors:
+                    btns = search_area.locator(sel).all()
+                    for more_btn in btns:
+                        if self._is_safe_top_card_button(page, more_btn):
+                            if not any(c[0] == more_btn for c in candidates):
+                                candidates.append((more_btn, "dropdown"))
             except Exception:
                 pass
 
