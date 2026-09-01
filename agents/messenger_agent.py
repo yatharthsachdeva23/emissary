@@ -306,56 +306,99 @@ class MessengerAgent:
             textarea.type(char, delay=get_typing_delay())
     def _verify_profile_criteria(self, page, name: str) -> bool:
         """
-        Extract connection counts and location from the profile page DOM.
-        Returns False if connections < 500 OR if location is NOT in India.
-        Returns True if criteria met, or if we can't definitively determine (fails open).
+        Verify location is India, and connections >= 500 (or followers >= 500).
+        Priority:
+        1. Check connections count in top card. If 500+ connections/mutual, return True.
+        2. If numeric connections count < 500 in top card, check followers in top card.
+        3. Check followers count in top card. If >= 500, return True.
+        4. Check Activity section followers count. If >= 500, return True.
+        5. Else, fail.
         """
         try:
-            # The top card contains followers and connections
-            text = ""
-            for selector in ['.pv-top-card', 'main', 'body']:
-                try:
-                    el = page.locator(selector).first
-                    if el.is_visible(timeout=1000):
-                        text = el.inner_text().lower()
-                        if "connections" in text or "followers" in text:
-                            break
-                except Exception:
-                    continue
-            
-            if not text:
-                return True # Fail open if we can't read the page text
+            top_card = page.locator("div.pv-top-card-layout__elements, div[class*='pv-top-card-layout'], main section, .pv-top-card").first
+            try:
+                top_card.wait_for(state="visible", timeout=5000)
+            except Exception:
+                pass
 
-            # ── Check 1: Location MUST be India ──────────────────────────────
-            # On the profile top card, LinkedIn always appends the country to the location.
-            # Example: "Faridabad, Haryana, India" or "Bengaluru, Karnataka, India"
-            if "india" not in text:
+            top_card_text = ""
+            for _ in range(10):
+                try:
+                    txt = top_card.inner_text().lower()
+                    if txt and ("connections" in txt or "follower" in txt or "india" in txt):
+                        top_card_text = txt
+                        break
+                except Exception:
+                    pass
+                page.wait_for_timeout(400)
+
+            if not top_card_text:
+                try:
+                    top_card_text = page.locator("body").inner_text()[:1000].lower()
+                except Exception:
+                    top_card_text = ""
+
+            try:
+                body_text_lower = page.locator("body").inner_text().lower()
+            except Exception:
+                body_text_lower = ""
+
+            if "india" not in top_card_text and "india" not in body_text_lower:
                 console.print(f"  [yellow]  ⚠ Profile location does not contain 'India'. Skipping.[/yellow]")
                 return False
-            
-            # ── Check 2: Connections MUST be 500+ ────────────────────────────
-            # Explicitly checking for the 500+ badge
-            if "500+ connections" in text or "500+\nconnections" in text:
-                return True
-                
+
             import re
-            
-            # Look for an explicit connection count that is less than 500
-            # E.g., "400 connections", "257\nconnections", "0 connections"
-            match = re.search(r'([\d,]+)\s+connections?', text)
-            if match:
-                num_str = match.group(1).replace(',', '')
+            if "500+ connections" in top_card_text or "500+\nconnections" in top_card_text or "500+ mutual connections" in top_card_text or "500+ mutual" in top_card_text:
+                console.print(f"  [green]  ✓ Verified 500+ connections in header.[/green]")
+                return True
+
+            conn_match = re.search(r'([\d,]+)\s+connections?', top_card_text)
+            if conn_match:
+                num_str = conn_match.group(1).replace(',', '')
                 try:
                     count = int(num_str)
-                    if count < 500:
-                        console.print(f"  [yellow]  ⚠ Profile has only {count} connections. Skipping (requires 500+).[/yellow]")
-                        return False
+                    if count >= 500:
+                        console.print(f"  [green]  ✓ Verified {count} connections in header.[/green]")
+                        return True
+                    else:
+                        console.print(f"  [dim]  Connections count in header is {count} (< 500). Checking followers...[/dim]")
                 except ValueError:
                     pass
-            
-            return True
+
+            fol_match = re.search(r'([\d,]+)\s+followers', top_card_text)
+            if fol_match:
+                num_str = fol_match.group(1).replace(',', '')
+                try:
+                    count = int(num_str)
+                    if count >= 500:
+                        console.print(f"  [green]  ✓ Verified {count} followers in header.[/green]")
+                        return True
+                    else:
+                        console.print(f"  [dim]  Followers count in header is {count} (< 500).[/dim]")
+                except ValueError:
+                    pass
+
+            activity_section = page.locator("section:has(h2:has-text('Activity')), section:has(h2:text-is('Activity')), section:has(a[href*='/detail/recent-activity/'])").first
+            if activity_section.is_visible(timeout=2000):
+                activity_text = activity_section.inner_text().lower()
+                act_fol_match = re.search(r'([\d,]+)\s+followers', activity_text)
+                if act_fol_match:
+                    num_str = act_fol_match.group(1).replace(',', '')
+                    try:
+                        count = int(num_str)
+                        if count >= 500:
+                            console.print(f"  [green]  ✓ Verified {count} followers in Activity section.[/green]")
+                            return True
+                        else:
+                            console.print(f"  [dim]  Followers in Activity section is {count} (< 500).[/dim]")
+                    except ValueError:
+                        pass
+
+            console.print(f"  [yellow]  ⚠ Profile has less than 500 connections/followers in relevant areas.[/yellow]")
+            return False
+
         except Exception as e:
-            console.print(f"  [dim]  ⚠ Could not verify connections for {name}: {e}[/dim]")
+            console.print(f"  [dim]  ⚠ Could not verify pre-criteria for {name}: {e}. Proceeding (failsafe).[/dim]")
             return True
 
     def _is_safe_top_card_button(self, page, element) -> bool:
@@ -499,15 +542,64 @@ class MessengerAgent:
                         btn.scroll_into_view_if_needed()
                         page.evaluate("window.scrollBy(0, -100)")
                         page.wait_for_timeout(400)
-                        btn.click(force=True)
+                        try:
+                            btn.click(force=True)
+                        except Exception:
+                            btn.evaluate("node => node.click()")
                         page.wait_for_timeout(1500)
 
-                        dropdown_connect = page.locator(
-                            "a[role='menuitem'][href*='custom-invite'], "
-                            "a[role='menuitem'][aria-label*='connect'], "
-                            "[role='menuitem'][aria-label*='Invite'][aria-label*='connect']"
-                        ).first
-                        if dropdown_connect.is_visible(timeout=2000):
+                        dropdown_connect_selectors = [
+                            "[componentkey*='ConnectButton']",
+                            "[componentkey*='connect']",
+                            "[componentkey*='Connect']",
+                            "a[componentkey*='connect']",
+                            "div[componentkey*='connect']",
+                            "[aria-label*='Invite'][aria-label*='connect']",
+                            "[aria-label*='invite'][aria-label*='connect']",
+                            "div[aria-label*='Invite to connect']",
+                            "a[aria-label*='Invite to connect']",
+                            "button[aria-label*='Invite to connect']",
+                            "[aria-label*='Connect with']",
+                            "a[href*='custom-invite']",
+                            "a[href*='/preload/custom-invite/']",
+                            ".artdeco-dropdown__content div:has-text('Connect')",
+                            ".artdeco-dropdown__content a:has-text('Connect')",
+                            ".artdeco-dropdown__content button:has-text('Connect')",
+                            "[role='menu'] div:has-text('Connect')",
+                            "[role='menu'] a:has-text('Connect')",
+                            "[role='menu'] button:has-text('Connect')",
+                            "[role='menuitem']:has-text('Connect')",
+                            "div[role='menuitem']:has-text('Connect')",
+                            "a[role='menuitem']:has-text('Connect')",
+                            "button[role='menuitem']:has-text('Connect')",
+                            ".artdeco-dropdown__content span:text-is('Connect')",
+                            "[role='menu'] span:text-is('Connect')",
+                            "div.artdeco-dropdown__item:has-text('Connect')",
+                            "li:has-text('Connect')",
+                            "div[tabindex='0']:has-text('Connect')",
+                            "a[data-tabindex='0']:has-text('Connect')",
+                        ]
+
+                        dropdown_connect = None
+                        for sel in dropdown_connect_selectors:
+                            try:
+                                candidates_loc = page.locator(sel).all()
+                                for cand in candidates_loc:
+                                    if cand.is_visible(timeout=500):
+                                        try:
+                                            rect = cand.evaluate("el => { const r = el.getBoundingClientRect(); return {x: r.x, y: r.y, w: r.width, h: r.height}; }")
+                                            if rect and rect.get("x", 999) < 800 and rect.get("y", 999) < 950 and rect.get("w", 0) > 0:
+                                                dropdown_connect = cand
+                                                break
+                                        except Exception:
+                                            dropdown_connect = cand
+                                            break
+                                if dropdown_connect:
+                                    break
+                            except Exception:
+                                continue
+
+                        if dropdown_connect:
                             connect_btn = dropdown_connect
                         else:
                             try:
@@ -530,7 +622,10 @@ class MessengerAgent:
                     page.wait_for_timeout(500)
 
                     url_before_click = page.url
-                    connect_btn.click()
+                    try:
+                        connect_btn.click(force=True)
+                    except Exception:
+                        connect_btn.evaluate("node => node.click()")
                     page.wait_for_timeout(2500)
 
                     if "custom-invite" in page.url or page.url != url_before_click:
@@ -550,6 +645,12 @@ class MessengerAgent:
                         "button:has-text('Send without a note')",
                         "button[aria-label='Send invitation']",
                         "button:has-text('Send invitation')",
+                        "div[role='dialog'] button[aria-label='Send now']",
+                        "div[role='dialog'] button:has-text('Send now')",
+                        "button[aria-label='Send now']",
+                        "button:has-text('Send now')",
+                        "div[role='dialog'] button:has-text('Send')",
+                        "button:has-text('Send')",
                     ]
 
                     page.wait_for_timeout(1000)
@@ -564,12 +665,18 @@ class MessengerAgent:
                             continue
 
                     if not send_blank_btn:
+                        is_pending = False
                         try:
-                            fallback = page.locator("div[role='dialog'] button:has-text('Send'), button:has-text('Send')").first
-                            if fallback.is_visible(timeout=1500):
-                                send_blank_btn = fallback
+                            pending_loc = page.locator("button:has-text('Pending'), [aria-label*='Pending'], [aria-label*='pending'], div:has-text('Invitation sent'), div:has-text('Invite sent')").first
+                            if pending_loc.is_visible(timeout=1500):
+                                is_pending = True
                         except Exception:
                             pass
+                        
+                        if is_pending:
+                            console.print(f"  [green]  ✓ Instant connection invite sent for {name}![/green]")
+                            human_sleep(2.0, 4.0, "After send")
+                            return True, "Request Sent"
 
                     # ── SAFETY NET: Name Verification ────────────────────────────────
                     if send_blank_btn:
@@ -584,8 +691,10 @@ class MessengerAgent:
                             try:
                                 el = page.locator(dialog_sel).first
                                 if el.is_visible(timeout=1000):
-                                    dialog_text = el.inner_text().lower()
-                                    break
+                                    txt = el.inner_text().lower()
+                                    if txt:
+                                        dialog_text = txt
+                                        break
                             except Exception:
                                 continue
 
@@ -595,15 +704,15 @@ class MessengerAgent:
                             name_verified = True
                         else:
                             console.print(
-                                f"  [red]  ✘ SAFETY NET: Mismatch! Expected '{first_name}' but modal text "
-                                f"doesn't match. Pressing Escape and trying next button...[/red]"
+                                f"  [bold red]  ✘ SAFETY NET: Modal target name mismatch! Expected '{first_name}' "
+                                f"in modal text, but found: '{dialog_text[:60]}...'. ABORTING connection attempt to prevent misclick.[/bold red]"
                             )
                             try:
                                 page.keyboard.press("Escape")
                                 page.wait_for_timeout(1000)
                             except Exception:
                                 pass
-                            continue  # **CRITICAL: Try the next candidate button!**
+                            return False, "modal_name_mismatch"
 
                     if send_blank_btn and name_verified:
                         if ghost_run:
@@ -618,32 +727,20 @@ class MessengerAgent:
                         except Exception:
                             send_blank_btn.evaluate("node => node.click()")
 
+                        page.wait_for_timeout(2000)
+                        console.print(f"  [bold green]  ✓ Connection request successfully sent to {name}![/bold green]")
                         human_sleep(2.0, 4.0, "After send")
-                        return True, "Blank Sent"
-                    else:
-                        console.print(f"  [yellow]  ⚠ Reached Connect modal, but couldn't find the Send button! Trying next...[/yellow]")
-                        try:
-                            page.keyboard.press("Escape")
-                            page.wait_for_timeout(1000)
-                        except Exception:
-                            pass
-                        continue
+                        return True, "Request Sent"
 
                 except Exception as e:
-                    console.print(f"  [yellow]  ⚠ Candidate {attempt} failed: {e}[/yellow]")
+                    console.print(f"  [dim]  Attempt {attempt} for {name} error: {e}[/dim]")
                     continue
 
-            # If we exit the loop, all candidates failed
-            console.print(f"  [red]  ❌ Exhausted all {len(candidates)} candidate Connect buttons for {name}. Manual review needed.[/red]")
-            return False, "exhausted_candidates"
+            return False, "click_failed"
 
         except Exception as e:
-            console.print(f"[red]  Connection error for {name}: {e}[/red]")
-            try:
-                page.keyboard.press("Escape")
-            except Exception:
-                pass
-            return False, f"error: {str(e)[:80]}"
+            console.print(f"  [red]  ❌ Error sending connection to {name}: {e}[/red]")
+            return False, str(e)
 
     # ─── Main Run ──────────────────────────────────────────────────────────────
 
