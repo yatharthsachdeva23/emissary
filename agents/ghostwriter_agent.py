@@ -119,24 +119,23 @@ For EACH lead, generate a concise, professional 280-character connection hook (d
 
 THE 3-PARAGRAPH "ROI SALES PITCH" FRAMEWORK (drafted_dm):
 
-Paragraph 1: The Factual Engineering/Product Hook (Domain-Specific & Real)
-- Address the lead by name. Start immediately with a sharp, technically accurate, and highly relevant product or system design question targeting a structural bottleneck common to their specific domain. Do NOT use greetings (like "Hope you are well") or empty flattery.
-- Dynamically tailor this opening question based on the target role type, and expand it with 1-2 lines detailing a real product trade-off:
-  * For AI PM / Product Management Leads: Focus on zero-human-touch sales automation, RAG vector retrieval latency, or balancing feature velocity with API credit optimization (e.g. 1.5x efficiency gains).
-  * For Product Analyst / Growth Leads: Focus on funnel optimization, severity multipliers for ticket deduplication, or user retention metrics.
-  * For Technical PM / Engineering Leads: Focus on multi-agent synchronization, search query latency (reducing from N*N to N+N), or API cost constraints.
+Paragraph 1: The Factual Engineering/Product/Growth Hook (Domain-Specific & Real)
+- Address the lead by name. Start immediately with a sharp, technically accurate, and highly relevant product, growth, or system design question targeting a structural bottleneck common to their specific domain. Do NOT use greetings (like "Hope you are well") or empty flattery.
+- Dynamically tailor this opening question based on the target role type, and expand it with 1-2 lines detailing a real product/growth trade-off:
+  * For CEO / Founder / COO / Executive Leads: Focus on scaling product execution velocity, zero-human-touch sales pipeline automation, or optimizing API & search credit overhead.
+  * For Product Manager / PM / APM Leads: Focus on feature trade-offs, RAG research agent workflows, search algorithm optimization (1.5x efficiency gains), or balancing speed vs. reliability.
+  * For Brand / Marketing / Growth Leads: Focus on automated outreach funnels, severity multipliers for ticket deduplication, or customer acquisition leverage.
 
 Paragraph 2: The Authority & Automation Flex (The Live Demo)
 - Connect their bottleneck to Yatharth's credentials: "I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I built automated B2B sales engines (25+ extra leads/month), 1.5x credit-optimized search algorithms, and RAG research agents. I also ranked 4th in NMG Labs' Agentic AI Hackathon."
 - Reveal the "magic trick" using this EXACT process and phrasing: "I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous multi-agent pipeline I built to demonstrate my system design capabilities live."
 
 Paragraph 3: The Valuation Trial Close (Position as a Value Proposition, Not Requesting an Internship)
-- Lower friction with this EXACT positioning and phrasing: "Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI PM / APM / Product Management] Intern for 2 months; if my zero-touch architectures, RAG research agents, and optimization pipelines do not provide immediate leverage to your team, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week."
+- Lower friction with this EXACT positioning and phrasing: "Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI PM / APM / Product Management / Growth] Intern for 2 months; if my zero-touch architectures, RAG research agents, and optimization pipelines do not provide immediate leverage to your team, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week."
 - Dynamic Role Mapping (select the exact match):
-  * For AI PM / Product Management leads: "AI PM Intern"
-  * For Product Analyst / Growth leads: "Product Analyst Intern"
-  * For APM / Product Strategy leads: "APM (Associate Product Manager) Intern"
-  * For Technical Product Manager leads: "Technical PM Intern"
+  * For CEO / Founder / COO / VP / PM leads: "AI PM Intern" or "APM Intern"
+  * For Brand / Marketing / Growth leads: "Product & Growth Intern" or "Product Management Intern"
+  * For Product Analyst / Strategy leads: "Product Analyst Intern"
   * For all other leads: "Product Management Intern"
 - Under no circumstances ask for favors or beg. Present this as a value deal where you deploy immediate leverage.
 - The absolute final line of this paragraph MUST strictly be: "Here is my resume: {resume_link}".
