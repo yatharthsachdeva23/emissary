@@ -511,20 +511,12 @@ class DiscoveryAgent:
             console.print("[yellow]No new leads today — all sources exhausted.[/yellow]")
             return []
 
-        # ── Heuristic pre-filter: rank all fresh leads and keep top (daily_limit × 2) ──
-        # This avoids sending 200-300 leads to Gemini when we only need 40.
-        # We score every lead with the fast keyword heuristic, sort descending,
-        # and hand only the best candidates to the (slower, smarter) Gemini scorer.
-        GEMINI_POOL = self.daily_limit * 2  # e.g. 40 × 2 = 80 candidates
-        if len(fresh) > GEMINI_POOL:
-            prescored = sorted(fresh, key=lambda l: self._heuristic_score(l), reverse=True)
-            candidates = prescored[:GEMINI_POOL]
-            console.print(
-                f"[dim]  Pre-filter: kept top {len(candidates)} from {len(fresh)} "
-                f"fresh leads for Gemini scoring[/dim]"
-            )
-        else:
-            candidates = fresh
+        # Pass ALL fresh leads directly to Gemini AI (chunked into 40-lead batches)
+        # Gemini will evaluate every single lead from the 25 Serper queries (~250 results)
+        candidates = fresh
+        console.print(
+            f"[cyan]  Passing ALL {len(candidates)} fresh leads directly to Gemini AI for full evaluation...[/cyan]"
+        )
 
         profile_summary = (
             f"{profile.get('name')}, {profile.get('year')} @ {profile.get('college')}, "
@@ -536,7 +528,7 @@ class DiscoveryAgent:
         )
 
         # ── Chunked Gemini scoring (40 leads per call to stay under token limits) ──
-        # Uses `candidates` (pre-filtered top 80), NOT the full `fresh` list.
+        # Evaluates all candidates in 40-lead batches across our round-robin Gemini keys.
         CHUNK_SIZE = 40
         chunks = [candidates[i:i + CHUNK_SIZE] for i in range(0, len(candidates), CHUNK_SIZE)]
         scored = []
