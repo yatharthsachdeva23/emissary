@@ -444,13 +444,17 @@ class DiscoveryAgent:
         snippet = (lead.get('snippet') or '').lower()
         text    = title + ' ' + snippet
 
-        HIGH_ROLE = ['cto', 'co-founder', 'cofounder', 'founder', 'vp engineering',
-                     'head of engineering', 'engineering manager', 'principal engineer',
-                     'tech lead', 'staff engineer', 'vp of engineering']
-        MED_ROLE  = ['senior engineer', 'senior sde', 'lead engineer', 'senior developer',
-                     'engineering lead', 'sde ii', 'sde 2']
-        GOOD_TECH = ['ai', 'ml', 'llm', 'backend', 'python', 'rag', 'fintech', 'saas',
-                     'agentic', 'wasm', 'rust', 'golang', 'devtools']
+        HIGH_ROLE = ['ceo', 'founder', 'cofounder', 'co-founder', 'coo', 'vp product',
+                     'vp growth', 'vp marketing', 'head of product', 'head of growth',
+                     'head of brand', 'chief product officer', 'director of product',
+                     'director of marketing', 'director of growth', 'cpo']
+        MED_ROLE  = ['product manager', 'lead product manager', 'group product manager',
+                     'product lead', 'brand manager', 'marketing manager', 'growth manager',
+                     'product analyst', 'growth pm', 'product operations manager', 'apm',
+                     'associate product manager', 'product strategy']
+        GOOD_TECH = ['product', 'brand', 'building', 'business', 'growth', 'funnel',
+                     'ai product management', 'b2b', 'saas', 'user research',
+                     'product strategy', 'roadmap', 'growth marketing']
         HIRING_SIG = ['hiring', 'we are hiring', 'looking for', 'join us', 'open role']
         DISCARD    = ['intern', 'student', 'fresher', 'trainee', 'apprentice', 'undergraduate']
         NON_INDIA  = ['usa', 'san francisco', 'new york', 'london', 'uk', 'canada',
