@@ -101,30 +101,38 @@ Return ONLY a JSON array of 12 query strings (no tbs, no extra fields):
 ```"""
 
 # ─── Scoring Prompt ───────────────────────────────────────────────────────────
-SCORING_PROMPT = """You are a lead-scoring assistant for an internship outreach tool.
+SCORING_PROMPT = """You are a lead-scoring assistant for a Product Management internship outreach tool.
 
 Student Profile:
 {profile_summary}
 
-Score each lead from 0.0 to 1.0.
+Score each lead from 0.0 to 1.0 based on how valuable they are as a potential manager/founder for a Product Management (PM / APM / AI PM / Growth) internship.
 
-PRIORITIZE (high scores):
-- Founders, Co-Founders, CTOs, VPs, Engineering Managers, Tech Leads, Principal Engineers, Senior SDEs
-- Big Tech / FAANG (Google, Microsoft, Amazon, etc.) located ANYWHERE IN INDIA.
-- Startups / Small Companies located SPECIFICALLY IN: Delhi, Bengaluru (Bangalore), Hyderabad, Pune, Mumbai. (Give much higher scores to startups in these cities).
-- Profiles explicitly showing "500+ connections" or high follower counts (1k+, etc.) in their snippet.
-- Active in AI, backend, security, developer tools, SaaS, FinTech, GovTech
-- Recently posting about building, hiring, or shipping product
+TARGET AUDIENCE & PRIORITIES (High Scores: 0.85 - 1.0):
+- Founders, Co-Founders, CEOs, COOs, VPs of Product, VPs of Growth, VPs of Marketing, Heads of Product, Heads of Brand, Heads of Growth, Product Managers, APMs, Product Leads, Brand Managers, Growth Managers.
+- STARTUPS & GROWTH COMPANIES ONLY (Seed, Series A/B, Bootstrapped, D2C, B2B SaaS, Fintech, E-Commerce, Consumer Tech, EdTech, GovTech, Retail) located in India (Delhi NCR, Gurgaon, Noida, Bangalore, Mumbai, Hyderabad, Pune, Remote).
+- Profiles showing active hiring or building in product, brand, or business growth.
 
-DISCARD immediately (score=0.0) if:
-- Role contains: intern, internship, student, trainee, fresher, apprentice
-- The person IS a student or intern themselves (not a decision-maker)
-- The post is just a student sharing their own internship search
-- No clear LinkedIn profile URL (e.g., it's a company page or job listing page)
-- The person is located strictly outside of India (e.g., San Francisco, USA, UK, Europe, etc.). ALL leads must be from India.
+CRITICAL DISCARD RULES (score = 0.0):
+1. BIG TECH & GIANT CORPORATES (DISCARD IMMEDIATELY): Discard anyone working at Google, Microsoft, Amazon, Meta, Apple, Netflix, Uber, Walmart, Salesforce, Swiggy, Zomato, Flipkart, Adobe, LinkedIn, Facebook, Atlassian, TCS, Infosys, Wipro, Cognizant, Accenture, Sabre, Cvent, Coupa.
+2. MISSING / UNKNOWN COMPANY OR ROLE (DISCARD IMMEDIATELY): If the person's company or role is unknown, missing, null, or empty string, DISCARD IT (score = 0.0). EVERY output lead MUST have an explicit, named company and title extracted from the title/snippet.
+3. INTERNS & STUDENTS (DISCARD IMMEDIATELY): Discard anyone whose role or title contains: intern, internship, student, trainee, fresher, apprentice, undergraduate.
+4. PURE TECH / NON-PM ROLES: Discard pure software engineers, SDEs, QA testers, or devops engineers who have no product, brand, growth, or executive management responsibilities.
+5. NON-INDIA: Discard anyone located outside of India.
 
-Return ONLY a JSON array in ```json ... ``` tags:
-[{{"name":null,"company":null,"role":null,"linkedin_url":"url","snippet":"snippet","score":0.0,"discard_reason":null,"source_query":"query"}}]
+Return ONLY a JSON array of objects wrapped in ```json ... ``` tags:
+[
+  {{
+    "name": "Full Name extracted from title",
+    "company": "Exact Startup Company Name extracted from snippet/title",
+    "role": "Exact Role/Title (e.g. Founder & CEO, Head of Product, APM)",
+    "linkedin_url": "url",
+    "snippet": "snippet",
+    "score": 0.95,
+    "discard_reason": null,
+    "source_query": "query"
+  }}
+]
 
 Raw leads ({count} items):
 {leads_json}
@@ -384,41 +392,26 @@ class DiscoveryAgent:
     # ─── Score & Filter ───────────────────────────────────────────────────────
 
     def _parse_follower_count(self, text: str) -> int:
-        """Parse follower count from LinkedIn snippet text.
-
-        Handles: '319K followers', '2,345 followers', '1.2M followers',
-                 '12k followers', '500+ connections' (treated as 500).
-        Returns -1 if nothing found (do not penalise; treat as unknown).
-        """
-        # Explicit follower count e.g. "319K followers" / "2.5M followers"
-        m = re.search(r'([\d,]+\.?\d*)\s*([kKmM])?\s*followers', text)
-        if m:
-            num = float(m.group(1).replace(',', ''))
-            suffix = (m.group(2) or '').lower()
+        """Parse follower/connection count from snippet text."""
+        match = re.search(r'([\d\.,]+)\s*([kkMm])?\s*(?:followers|connections)', text, re.IGNORECASE)
+        if match:
+            raw_num = match.group(1).replace(',', '')
+            suffix  = (match.group(2) or '').lower()
+            try:
+                num = float(raw_num)
+            except ValueError:
+                return -1
             if suffix == 'k':
                 return int(num * 1_000)
             elif suffix == 'm':
                 return int(num * 1_000_000)
             return int(num)
-        # "500+ connections" ⟹ assume exactly 500 followers as base
         if '500+ connections' in text:
             return 500
-        return -1  # unknown — don't penalise
+        return -1
 
     def _follower_bonus(self, followers: int) -> float:
-        """Log-normal bell-curve bonus peaking at 10 K followers.
-
-        Curve shape (log10 space, sigma=1.0):
-          ~500  → +0.06     ← base signal, decent reach
-          ~1 K  → +0.09     ← solid presence
-          ~5 K  → +0.14     ← strong presence
-          ~10 K → +0.15     ← PEAK (sweet spot: active & reachable)
-          ~20 K → +0.14
-          ~100K → +0.09     ← influential but harder to get a reply
-          ~1 M  → +0.02     ← celebrity tier; reply rate very low
-
-        Always positive — large followings are still a plus, just less so.
-        """
+        """Log-normal bell-curve bonus peaking at 10 K followers."""
         if followers <= 0:
             return 0.0
         PEAK_LOG  = math.log10(10_000)   # 4.0
@@ -449,16 +442,21 @@ class DiscoveryAgent:
         DISCARD    = ['intern', 'student', 'fresher', 'trainee', 'apprentice', 'undergraduate']
         NON_INDIA  = ['usa', 'san francisco', 'new york', 'london', 'uk', 'canada',
                       'europe', 'australia', 'germany', 'singapore', 'dubai']
-        PREFERRED_CITIES = ['delhi', 'bengaluru', 'bangalore', 'hyderabad', 'pune', 'mumbai']
+        PREFERRED_CITIES = ['delhi', 'bengaluru', 'bangalore', 'hyderabad', 'pune', 'mumbai', 'gurgaon', 'noida']
         BIG_TECH   = ['google', 'microsoft', 'amazon', 'apple', 'meta', 'uber',
-                      'stripe', 'netflix', 'adobe', 'salesforce']
+                      'stripe', 'netflix', 'adobe', 'salesforce', 'swiggy', 'zomato',
+                      'flipkart', 'cvent', 'sabre', 'coupa', 'linkedin', 'facebook',
+                      'walmart', 'atlassian', 'tcs', 'infosys', 'wipro', 'cognizant', 'accenture']
 
+        # Discard Big Tech, non-India, or intern/student leads immediately
+        if any(kw in text for kw in BIG_TECH):
+            return 0.0
         if any(kw in text for kw in DISCARD):
             return 0.0
         if any(kw in text for kw in NON_INDIA):
             return 0.0
 
-        score = 0.35  # base — gets promoted if signals match
+        score = 0.35  # base
         if any(kw in text for kw in HIGH_ROLE):
             score += 0.40
         elif any(kw in text for kw in MED_ROLE):
@@ -468,24 +466,12 @@ class DiscoveryAgent:
         if any(kw in text for kw in HIRING_SIG):
             score += 0.10
 
-        # ── Follower bell-curve bonus ─────────────────────────────────────
-        # If count is explicitly mentioned, apply curve (peaks at 10K).
-        # If only '500+ connections' is mentioned, treat as 500.
-        # If nothing is mentioned at all, skip — we do NOT penalise.
         follower_count = self._parse_follower_count(text)
         if follower_count > 0:
             score += self._follower_bonus(follower_count)
 
-        # ── City / company-tier preference ───────────────────────────────
-        is_big_tech  = any(kw in text for kw in BIG_TECH)
-        in_pref_city = any(kw in text for kw in PREFERRED_CITIES)
-
-        if is_big_tech:
-            score += 0.15          # Big Tech anywhere in India is fine
-        elif in_pref_city:
-            score += 0.15          # Startup in preferred city
-        else:
-            score -= 0.10          # Startup outside preferred city
+        if any(kw in text for kw in PREFERRED_CITIES):
+            score += 0.15
 
         return round(min(max(score, 0.0), 1.0), 2)
 
@@ -512,7 +498,6 @@ class DiscoveryAgent:
             return []
 
         # Pass ALL fresh leads directly to Gemini AI (chunked into 40-lead batches)
-        # Gemini will evaluate every single lead from the 25 Serper queries (~250 results)
         candidates = fresh
         console.print(
             f"[cyan]  Passing ALL {len(candidates)} fresh leads directly to Gemini AI for full evaluation...[/cyan]"
@@ -528,7 +513,6 @@ class DiscoveryAgent:
         )
 
         # ── Chunked Gemini scoring (40 leads per call to stay under token limits) ──
-        # Evaluates all candidates in 40-lead batches across our round-robin Gemini keys.
         CHUNK_SIZE = 40
         chunks = [candidates[i:i + CHUNK_SIZE] for i in range(0, len(candidates), CHUNK_SIZE)]
         scored = []
@@ -554,11 +538,9 @@ class DiscoveryAgent:
                         scored.extend(batch_scored)
                         gemini_ok = True
                     else:
-                        # Log first 400 chars of response for debugging
                         preview = (raw_text or "")[:400].replace("\n", " ")
                         console.print(f"[yellow]  Batch {idx}: JSON parse failed. "
                                       f"Response preview: {preview}[/yellow]")
-                        # Fall back to heuristic for this chunk
                         for lead in chunk:
                             title_parts = lead.get("title", "").split(" - ")
                             lead["score"] = self._heuristic_score(lead)
@@ -590,22 +572,45 @@ class DiscoveryAgent:
         scored_by = "Gemini AI" if gemini_ok else "heuristic fallback"
         console.print(f"[dim]  Scored {len(scored)} leads via {scored_by}[/dim]")
 
-        # Hard post-filter: drop anyone who IS an intern/student
+        # ── Hard Post-Filters ─────────────────────────────────────────────
+        # 1. Drop interns & students
+        # 2. Drop Big Tech & giant multinationals
+        # 3. Drop leads with missing / empty company names or roles
         INTERN_KEYWORDS = [
             "intern", "internship", "student", "trainee", "fresher",
             "apprentice", "undergraduate", "postgraduate",
         ]
-        def _is_intern(lead: dict) -> bool:
+        BIG_TECH_KEYWORDS = [
+            "google", "microsoft", "amazon", "apple", "meta", "uber",
+            "stripe", "netflix", "adobe", "salesforce", "swiggy", "zomato",
+            "flipkart", "cvent", "sabre", "coupa", "linkedin", "facebook",
+            "walmart", "atlassian", "tcs", "infosys", "wipro", "cognizant", "accenture"
+        ]
+
+        def _is_valid_startup_lead(lead: dict) -> bool:
+            score = lead.get("score", 0)
+            if score < 0.4:
+                return False
+
             role = (lead.get("role") or "").lower()
             name = (lead.get("name") or "").lower()
-            return any(kw in role or kw in name for kw in INTERN_KEYWORDS)
+            company = (lead.get("company") or "").lower().strip()
+            snippet = (lead.get("snippet") or "").lower()
+            text = f"{name} {role} {company} {snippet}"
 
-        pre_filter = [l for l in scored if l.get("score", 0) >= 0.4]
-        valid = sorted([l for l in pre_filter if not _is_intern(l)],
+            # Must have a valid, non-empty company name
+            if not company or company in ("—", "null", "none", "unknown", "undefined"):
+                return False
+            # Must not be an intern or student
+            if any(kw in role or kw in name for kw in INTERN_KEYWORDS):
+                return False
+            # Must NOT be Big Tech or giant multinational
+            if any(kw in text for kw in BIG_TECH_KEYWORDS):
+                return False
+            return True
+
+        valid = sorted([l for l in scored if _is_valid_startup_lead(l)],
                        key=lambda x: x.get("score", 0), reverse=True)
-        intern_dropped = len(pre_filter) - len(valid)
-        if intern_dropped:
-            console.print(f"[dim]  Dropped {intern_dropped} intern/student profiles[/dim]")
 
         top = valid[:self.daily_limit]
 
@@ -621,9 +626,9 @@ class DiscoveryAgent:
             lead["url"] = raw_url
             lead.setdefault("linkedin_url", raw_url)
 
-        console.print(f"[green]✓ {len(scored)} scored → {len(valid)} qualified → {len(top)} selected[/green]")
+        console.print(f"[green]✓ {len(scored)} scored → {len(valid)} qualified startup leads → {len(top)} selected[/green]")
 
-        table = Table(title="Today's Leads", header_style="bold cyan")
+        table = Table(title="Today's Startup Leads", header_style="bold cyan")
         table.add_column("#", width=3)
         table.add_column("Name", width=22)
         table.add_column("Role", width=22)
