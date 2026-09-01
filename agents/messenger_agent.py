@@ -242,24 +242,24 @@ class MessengerAgent:
 
     def _visit_profile(self, page, url: str) -> bool:
         """Visit a LinkedIn profile, scroll naturally, then return True if successful."""
-        try:
-            url = self._normalize_linkedin_url(url)
-            page.goto(url, wait_until="domcontentloaded", timeout=60000)
-            human_sleep(2, 4, "Page load wait")
+        from utils.network import is_network_error, wait_for_network_recovery
+        for attempt in range(2):
+            try:
+                url = self._normalize_linkedin_url(url)
+                page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                human_sleep(2, 4, "Page load wait")
 
-            # ── Post-navigation URL guard ────────────────────────────────────
-            # If LinkedIn redirected us to authwall or login (cookie mismatch or
-            # per-profile restriction), abort this lead gracefully.
-            current_url = page.url
-            if any(x in current_url for x in ("authwall", "/login", "/signup", "checkpoint")):
-                console.print(f"  [red]  ✖ Redirected to login/authwall for this profile. Session cookie may have expired or profile is restricted.[/red]")
-                console.print(f"  [dim]    URL: {current_url}[/dim]")
-                return False
+                # ── Post-navigation URL guard ────────────────────────────────────
+                current_url = page.url
+                if any(x in current_url for x in ("authwall", "/login", "/signup", "checkpoint")):
+                    console.print(f"  [red]  ✖ Redirected to login/authwall for this profile. Session cookie may have expired or profile is restricted.[/red]")
+                    console.print(f"  [dim]    URL: {current_url}[/dim]")
+                    return False
 
-            # Check for abort conditions after each page load
-            should_abort, reason = check_abort_conditions(page)
-            if should_abort:
-                return False
+                # Check for abort conditions after each page load
+                should_abort, reason = check_abort_conditions(page)
+                if should_abort:
+                    return False
 
             # Human-like: scroll down the profile slowly
             for _ in range(random.randint(2, 4)):
@@ -278,9 +278,13 @@ class MessengerAgent:
 
             return True
 
-        except Exception as e:
-            console.print(f"[red]  Profile visit error: {e}[/red]")
-            return False
+            except Exception as e:
+                if is_network_error(e) and attempt == 0:
+                    console.print("[yellow]⚠ Internet dropped while loading LinkedIn profile. Waiting for Wi-Fi recovery (Checking every 30s, max 10 mins)...[/yellow]")
+                    if wait_for_network_recovery(max_wait_seconds=600, check_interval_seconds=30):
+                        continue
+                console.print(f"[red]  Profile visit error: {e}[/red]")
+                return False
 
     def _type_note(self, page, note: str) -> None:
         """Type a note character by character with random delays."""
