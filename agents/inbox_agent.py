@@ -125,20 +125,30 @@ class InboxAgent:
         """Strictly jittered sleep between every Playwright action."""
         time.sleep(random.uniform(min_s, max_s))
 
-    def scrape_recent_connections(self, page) -> list[str]:
+    def scrape_recent_connections(self, page, limit: int = None) -> list[dict]:
         """
-        Open the connections page and scrape the top N connection names.
-        Returns a list of normalized names.
-        Uses 3 fallback strategies to handle LinkedIn DOM changes.
+        Open the connections page and scrape recent connections.
+        Returns a list of dicts: [{"name": str, "url": str, "handle": str, "display_name": str}]
         """
+        target_limit = limit or CONNECTIONS_TO_SCRAPE
+
         def _warmup(self, page):
-            """Visit feed first to establish session and look human."""
-            console.print("[dim]  Warming up browser (visiting feed)...[/dim]")
+            """Visit feed first to establish session, warm up cookies, and look human."""
+            console.print("[dim]  Warming up browser (visiting feed and natural scrolling 12-20s)...[/dim]")
             try:
                 page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=45000)
             except Exception:
                 pass # Ignore timeouts from hanging background scripts
-            self._human_sleep(12, 15)  # Extended wait for login redirects/account selection
+            
+            try:
+                page.mouse.wheel(0, random.randint(300, 700))
+                time.sleep(random.uniform(3.0, 5.0))
+                page.mouse.wheel(0, random.randint(400, 800))
+                time.sleep(random.uniform(4.0, 7.0))
+                page.mouse.wheel(0, -random.randint(200, 400))
+                time.sleep(random.uniform(3.0, 6.0))
+            except Exception:
+                time.sleep(random.uniform(12.0, 18.0))
 
         _warmup(self, page)
 
@@ -156,158 +166,135 @@ class InboxAgent:
         console.print(f"[cyan]  Navigating to connections page...[/cyan]")
         try:
             page.goto(connections_url, wait_until="domcontentloaded", timeout=45000)
-        except Exception as e:
+        except Exception:
             console.print(f"[yellow]  ⚠ Navigation wait timed out, but proceeding anyway...[/yellow]")
         self._human_sleep(4, 7)  # Longer wait — connections page is JS-heavy
 
-        # Focus on the connections area first so PageDown targets the correct scrollable div.
-        # CRITICAL FIX: Ensure focus is inside the scrollable container.
         try:
-            # Hover over the middle of the screen to ensure mouse wheel targets the right area
             page.mouse.move(page.viewport_size['width'] / 2, page.viewport_size['height'] / 2)
-            # Try to click a safe non-link area in the container to focus it
             page.locator('.scaffold-finite-scroll__content').first.click(force=True, timeout=2000)
         except Exception:
             pass
 
         self._human_sleep(1.0, 2.0)
-        
-        raw_names = []
-        modern_selectors = [
-            "span.mn-connection-card__name",
-            ".mn-connection-card__name",
-            "[data-view-name='connections-list-item'] span.t-16",
-            "a.mn-connection-card__link span",
-            "li.mn-connection-card span.t-16",
-            ".scaffold-finite-scroll__content li span.t-16",
-        ]
 
-        # Dynamic scrolling: scroll and wait until we have enough names
-        for scroll_attempt in range(12):
-            # 1. Count actual connection list items, not just random links on the page
+        # Dynamic scrolling capped dynamically based on target_limit
+        max_scrolls = max(12, (target_limit // 3) + 4)
+        last_count = 0
+        same_count_attempts = 0
+
+        console.print(f"[dim]  Scanning connections page (Target Limit: {target_limit}, Max Scrolls: {max_scrolls})...[/dim]")
+
+        for scroll_attempt in range(1, max_scrolls + 1):
             current_count = 0
             try:
-                # Count list items inside the main container
-                current_count = page.locator('.scaffold-finite-scroll__content li, li.mn-connection-card').count()
-            except: pass
+                current_count = page.evaluate('''() => {
+                    const links = document.querySelectorAll('a[href*="/in/"]');
+                    const handles = new Set();
+                    const generic = ["linkedin member", "linkedin user", "someone", "deleted user", "settings", "messaging"];
+                    links.forEach(l => {
+                        const href = l.href || '';
+                        const txt = (l.innerText || '').split('\\n')[0].trim().toLowerCase();
+                        if (href.includes('/in/') && txt && txt.length > 2 && !generic.includes(txt)) {
+                            const clean = href.split('?')[0].replace(/\\/$/, '');
+                            const parts = clean.split('/');
+                            const h = parts[parts.length - 1];
+                            if (h) handles.add(h);
+                        }
+                    });
+                    return handles.size;
+                }''')
+            except Exception:
+                pass
             
-            if current_count >= CONNECTIONS_TO_SCRAPE:
+            console.print(f"  ⏱ Scroll cycle {scroll_attempt}/{max_scrolls}: {current_count} unique connection(s) detected on page...")
+
+            if current_count >= target_limit:
+                console.print(f"  [bold green]✓ Target limit ({target_limit}) reached with {current_count} unique connections detected. Stopping scroll.[/bold green]")
                 break
+
+            if current_count > 0 and current_count == last_count:
+                same_count_attempts += 1
+                if same_count_attempts >= 4:
+                    console.print(f"  [yellow]ℹ Reached end of available connection list ({current_count} total connections). Stopping scroll.[/yellow]")
+                    break
+            else:
+                same_count_attempts = 0
+
+            last_count = current_count
                 
-            # 2. Scroll down aggressively using multiple methods
             try:
-                # Method A: Mouse wheel (most natural, targets what's under cursor)
-                page.mouse.wheel(0, 1500)
-                
-                # Method B: Keyboard
+                page.mouse.wheel(0, 1800)
                 page.keyboard.press("PageDown")
                 page.keyboard.press("PageDown")
-                
-                # Method C: JavaScript on the specific scrollable container
                 page.evaluate('''() => {
-                    let containers = document.querySelectorAll('.scaffold-finite-scroll__content, .scaffold-layout__main');
+                    let containers = document.querySelectorAll('.scaffold-finite-scroll__content, .scaffold-layout__main, main');
                     containers.forEach(c => c.scrollBy(0, 1500));
                     window.scrollBy(0, 1500);
+                    
+                    const cards = document.querySelectorAll('li.mn-connection-card, a[href*="/in/"]');
+                    if (cards.length > 0) {
+                        cards[cards.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    }
                 }''')
-            except: pass
+            except Exception:
+                pass
             
-            # Wait for lazy loading
-            self._human_sleep(2.0, 4.0)
+            self._human_sleep(2.0, 3.5)
         
-        try:
-            page.keyboard.press("Home")
-            page.evaluate('''() => {
-                let containers = document.querySelectorAll('.scaffold-finite-scroll__content, .scaffold-layout__main');
-                containers.forEach(c => c.scrollTo(0, 0));
-                window.scrollTo(0, 0);
-            }''')
-        except: pass
         self._human_sleep(1, 2)
 
-        # ── Strategy 1: Modern LinkedIn class selectors (2024–2025 DOM) ──
-        for selector in modern_selectors:
-            try:
-                elements = page.locator(selector).all()
-                names = [el.inner_text().strip() for el in elements if el.inner_text().strip()]
-                if len(names) >= 2:  # Need at least 2 to be meaningful
-                    raw_names = names[:CONNECTIONS_TO_SCRAPE]
-                    console.print(f"[green]  ✓ Strategy 1: Scraped {len(raw_names)} names via '{selector}'[/green]")
-                    break
-            except Exception:
-                continue
+        raw_items = []
+        seen_handles = set()
 
-        # ── Strategy 2: Aria-label links (LinkedIn profile link text) ──
-        if not raw_names:
-            try:
-                links = page.locator('a[href*="/in/"]').all()
-                seen = set()
-                for link in links:
-                    try:
-                        text = link.inner_text().strip()
-                        href = link.get_attribute("href") or ""
-                        # Exclude navigation/button links (short text or no /in/ path)
-                        if len(text) > 3 and "/in/" in href and text not in seen:
-                            raw_names.append(text)
-                            seen.add(text)
-                            if len(raw_names) >= CONNECTIONS_TO_SCRAPE:
-                                break
-                    except Exception:
-                        continue
-                if raw_names:
-                    console.print(f"[green]  ✓ Strategy 2: Scraped {len(raw_names)} names via profile links[/green]")
-            except Exception:
-                pass
+        console.print(f"\n[bold cyan]  Extracting connection details (1 to {target_limit}):[/bold cyan]")
 
-        # ── Strategy 3: Full page text regex extraction ──
-        if not raw_names:
-            try:
-                import re as _re
-                content = page.content()
-                found = _re.findall(
-                    r'aria-label=["\'](?:View\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\'?s?\s+profile["\']',
-                    content
-                )
-                found += _re.findall(
-                    r'Send message to ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',
-                    content
-                )
-                raw_names = list(dict.fromkeys(found))
-            except Exception:
-                pass
+        # Scrape profiles and profile links directly from connection cards
+        try:
+            links = page.locator('a[href*="/in/"]').all()
+            generic = ["linkedin member", "linkedin user", "someone", "deleted user", "settings", "messaging"]
 
-        # ── Strategy 4: Generic List Item Extraction ──
-        if not raw_names:
-            try:
-                # Find all LI items in the connections scaffold
-                items = page.locator(".scaffold-finite-scroll__content li, .mn-connection-card").all()
-                for item in items:
-                    text = item.inner_text().split("\n")[0].strip()
-                    if len(text) > 3 and text not in raw_names:
-                        raw_names.append(text)
-            except Exception:
-                pass
+            for link in links:
+                try:
+                    text = link.inner_text().strip()
+                    href = link.get_attribute("href") or ""
+                    clean_name = text.split("\n")[0].strip()
+                    handle = extract_linkedin_handle(href)
 
-        # Filter out generic names
-        generic = ["linkedin member", "linkedin user", "someone", "deleted user"]
-        raw_names = [n for n in raw_names if n.lower().strip() not in generic]
-        raw_names = list(dict.fromkeys(raw_names))[:CONNECTIONS_TO_SCRAPE]
+                    if len(clean_name) > 3 and handle and handle not in seen_handles and clean_name.lower() not in generic:
+                        seen_handles.add(handle)
+                        norm_name = _normalize_name(clean_name)
+                        item = {
+                            "name": norm_name,
+                            "url": href,
+                            "handle": handle,
+                            "display_name": clean_name
+                        }
+                        raw_items.append(item)
+                        console.print(f"  [cyan]{len(raw_items):2d}. Scraped Connection:[/cyan] [bold white]{clean_name}[/bold white] [dim](handle: {handle})[/dim]")
 
-        if not raw_names:
+                        if len(raw_items) >= target_limit:
+                            break
+                except Exception:
+                    continue
+        except Exception as err:
+            console.print(f"[yellow]  ⚠ Connection card link extraction error: {err}[/yellow]")
+
+        if not raw_items:
             console.print(
-                "[yellow]  ⚠ All 3 scrape strategies failed. "
-                "LinkedIn may have A/B-tested a new layout. "
-                "Closer phase skipped safely.[/yellow]"
+                "[yellow]  ⚠ Could not scrape connection URLs. "
+                "LinkedIn may have changed page layout. Closer phase skipped safely.[/yellow]"
             )
             return []
 
-        normalized = [_normalize_name(n) for n in raw_names if n.strip()]
-        return [n for n in normalized if n]  # Drop any empty strings after normalization
+        console.print(f"[green]  ✓ Scraped {len(raw_items)} recent connection(s) with profile URLs[/green]")
+        return raw_items
 
-    def build_execution_queue(self, scraped_names: list[str]) -> list[dict]:
+    def build_execution_queue(self, scraped_connections: list[dict]) -> list[dict]:
         """
-        Cross-reference scraped LinkedIn names with the Google Sheet.
-        Returns leads that (a) exist in the sheet with Status='Blank Sent'
-        and (b) match a scraped name exactly.
+        Cross-reference scraped LinkedIn connections with the Google Sheet.
+        Uses URL handle matching (primary) and name disambiguation (secondary)
+        to prevent messaging the wrong person if multiple leads share the same name.
         """
         try:
             from utils.sheets import SheetsClient
@@ -320,24 +307,64 @@ class InboxAgent:
             console.print("[dim]  No 'Blank Sent' leads in sheet.[/dim]")
             return []
 
-        queue = []
+        # Count occurrences of normalized names in sheet_leads to detect duplicate names
+        name_counts = {}
         for lead in sheet_leads:
-            sheet_name = lead.get("name", "").strip().lower()
-            if not sheet_name:
-                continue
-            # Exact match (case-insensitive) after normalization.
-            # Names in the sheet are written exactly by the bot itself,
-            # so after _normalize_name both sides should be identical.
-            # No fuzzy matching — avoids sending the wrong DM to the wrong person.
-            sheet_name_normalized = _normalize_name(sheet_name)
-            for scraped in scraped_names:
-                if sheet_name_normalized == scraped:
+            n = _normalize_name(lead.get("name", ""))
+            if n:
+                name_counts[n] = name_counts.get(n, 0) + 1
+
+        queue = []
+        matched_lead_urls = set()
+
+        for sc in scraped_connections:
+            sc_name = sc.get("name", "")
+            sc_handle = sc.get("handle", "")
+            
+            match_found = None
+
+            # --- Priority 1: Exact Unique URL Handle Match ---
+            if sc_handle:
+                for lead in sheet_leads:
+                    lead_url = lead.get("linkedin_url", "")
+                    if lead_url in matched_lead_urls:
+                        continue
+                    lead_handle = extract_linkedin_handle(lead_url)
+
+                    if lead_handle and lead_handle == sc_handle:
+                        match_found = lead
+                        console.print(
+                            f"  [green]✓ Exact URL Handle Match:[/green] '{lead['name']}' "
+                            f"({lead_handle}) ↔ '{sc.get('display_name')}' ({sc_handle})"
+                        )
+                        break
+
+            # --- Priority 2: Name Match (Only if UNAMBIGUOUS) ---
+            if not match_found and sc_name:
+                if name_counts.get(sc_name, 0) > 1:
                     console.print(
-                        f"  [green]✓ Match:[/green] '{lead['name']}' "
-                        f"(sheet) ↔ '{scraped}' (LinkedIn)"
+                        f"  [bold yellow]⚠ Ambiguous Name Guard:[/bold yellow] Connection '{sc_name}' "
+                        f"matches {name_counts[sc_name]} leads with the same name in the sheet, but handle '{sc_handle}' "
+                        f"did not match any sheet URL. Skipping to prevent messaging wrong lead."
                     )
-                    queue.append(lead)
-                    break  # Don't double-add the same lead
+                    continue
+
+                for lead in sheet_leads:
+                    lead_url = lead.get("linkedin_url", "")
+                    if lead_url in matched_lead_urls:
+                        continue
+                    sheet_name_normalized = _normalize_name(lead.get("name", ""))
+                    if sheet_name_normalized == sc_name:
+                        match_found = lead
+                        console.print(
+                            f"  [green]✓ Name Match (Unambiguous):[/green] '{lead['name']}' "
+                            f"(sheet) ↔ '{sc.get('display_name')}' (LinkedIn)"
+                        )
+                        break
+
+            if match_found:
+                matched_lead_urls.add(match_found.get("linkedin_url", ""))
+                queue.append(match_found)
 
         return queue
 
@@ -663,18 +690,18 @@ class InboxAgent:
             Stealth_cls().apply_stealth_sync(page)
 
             # Step 1: Scrape recent connections
-            scraped_names = self.scrape_recent_connections(page)
-            summary["checked"] = len(scraped_names)
+            scraped_conns = self.scrape_recent_connections(page)
+            summary["checked"] = len(scraped_conns)
 
-            if not scraped_names:
+            if not scraped_conns:
                 console.print("[yellow]No connections scraped. Skipping Closer phase.[/yellow]")
                 browser.close()
                 return summary
 
-            console.print(f"[cyan]  Scraped {len(scraped_names)} recent connections[/cyan]")
+            console.print(f"[cyan]  Scraped {len(scraped_conns)} recent connections[/cyan]")
 
             # Step 2: Cross-reference with sheet
-            queue = self.build_execution_queue(scraped_names)
+            queue = self.build_execution_queue(scraped_conns)
             summary["matched"] = len(queue)
 
             if not queue:
