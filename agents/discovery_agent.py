@@ -32,29 +32,105 @@ LEADS_PATH = DATA_DIR / "leads_today.json"
 SEEN_PATH = DATA_DIR / "seen_profiles.json"
 SERPER_URL = "https://google.serper.dev/search"
 
-# ─── Layer 1: Static Profile & Post Queries (10 queries total) ───────────────
-STATIC_PROFILE_QUERIES = [
-    # Startup Founders & C-Level Executives
-    ('site:linkedin.com/in ("Founder" OR "Co-Founder" OR "CEO") ("Product" OR "Growth") ("Startup" OR "Seed" OR "Series A" OR "Bootstrapped") "India" -intern -student', "qdr:m"),
-    ('site:linkedin.com/in ("Founder" OR "Co-Founder") ("SaaS" OR "Fintech" OR "E-commerce" OR "D2C") "Delhi NCR" OR "Gurgaon" OR "Noida" -intern -student', "qdr:m"),
-    ('site:linkedin.com/in ("Founder" OR "Co-Founder" OR "CEO") ("B2B" OR "SaaS" OR "Product") "Pune" OR "Mumbai" OR "Hyderabad" -intern -student', "qdr:m"),
-    ('site:linkedin.com/in ("Co-Founder" OR "COO") ("Product" OR "Building" OR "Growth") "Bengaluru" OR "Bangalore" -intern -student', "qdr:m"),
-    # Product Leaders & VPs at Startups
-    ('site:linkedin.com/in ("Head of Product" OR "VP Product" OR "Director of Product") ("SaaS" OR "Fintech" OR "B2B" OR "D2C" OR "Consumer") "India" -intern -student', "qdr:m"),
-    ('site:linkedin.com/in ("Head of Product" OR "VP Product" OR "Product Manager") "Delhi NCR" OR "Gurgaon" OR "Noida" OR "Remote" -intern -student', "qdr:m"),
-    # Product Managers & APMs at Startups
-    ('site:linkedin.com/in ("Product Manager" OR "APM" OR "Lead Product Manager") ("Startup" OR "Scaleup" OR "Early stage") "India" -intern -student', "qdr:m"),
-    ('site:linkedin.com/in ("Product Manager" OR "APM" OR "Product Strategy") ("AI" OR "Fintech" OR "B2B" OR "SaaS") "India" -intern -student', "qdr:m"),
-    ('site:linkedin.com/in ("Growth Product Manager" OR "Product Lead" OR "Group Product Manager") "Bengaluru" OR "Bangalore" OR "Gurgaon" OR "Delhi NCR" -intern -student', "qdr:m"),
-    ('site:linkedin.com/in ("Head of Growth" OR "VP Growth" OR "Growth Manager") ("Startup" OR "SaaS" OR "D2C" OR "Fintech") "India" -intern -student', "qdr:m"),
+# ─── Combinatorial Keyword Matrix for Dynamic Query Generation ───────────────
+ROLE_SETS = [
+    '"Founder" OR "Co-Founder" OR "CEO"',
+    '"Head of Product" OR "VP Product" OR "CPO"',
+    '"Product Manager" OR "APM" OR "Associate Product Manager"',
+    '"Lead Product Manager" OR "Group Product Manager" OR "Staff PM"',
+    '"Product Lead" OR "Growth Product Manager" OR "Growth PM"',
+    '"Co-Founder" OR "COO" OR "VP Growth"',
+    '"Founding Product Manager" OR "Founding PM" OR "Product Manager"',
+    '"VP Product" OR "Director of Product" OR "Head of Product"',
+    '"Head of Growth" OR "VP Growth" OR "Growth Lead"',
+    '"Product Operations Manager" OR "Product Lead" OR "PM"',
 ]
 
-# Active hiring signals — post queries use tbs=qdr:w (past week) for maximum freshness
-STATIC_POST_QUERIES = [
-    ('site:linkedin.com/posts "we are hiring" "Product Manager" OR "APM" OR "Growth Manager" "Startup" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "hiring" "Product Lead" OR "Head of Product" OR "APM" "building" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "looking for" "Product Manager" OR "APM" ("SaaS" OR "Fintech" OR "D2C" OR "Startup") "India" -intern', "qdr:w"),
+STARTUP_THEMES = [
+    '"Startup" OR "Early Stage"',
+    '"Seed" OR "Series A"',
+    '"Series B" OR "Scaleup"',
+    '"Bootstrapped" OR "Fast Growing"',
+    '"B2B SaaS" OR "SaaS"',
+    '"Fintech" OR "Payments"',
+    '"D2C" OR "E-Commerce"',
+    '"AI Product" OR "Generative AI"',
+    '"Consumer Tech" OR "Mobile App"',
+    '"Healthtech" OR "MedTech"',
+    '"EdTech" OR "Learning Tech"',
+    '"Logistics Tech" OR "Supply Chain"',
+    '"PropTech" OR "Real Estate Tech"',
+    '"Product Strategy" OR "PLG"',
+    '"Building in Public" OR "Venture Backed"',
+    '"User Research" OR "Product Analytics"',
 ]
+
+LOCATION_SETS = [
+    '"India"',
+    '"Bangalore"',
+    '"Bengaluru"',
+    '"Delhi NCR"',
+    '"Gurgaon"',
+    '"Gurugram"',
+    '"Noida"',
+    '"Mumbai"',
+    '"Pune"',
+    '"Hyderabad"',
+]
+
+POST_HIRING_SIGNALS = [
+    "we are hiring",
+    "hiring",
+    "looking for",
+    "join our product team",
+    "seeking APM",
+    "open product role",
+]
+
+
+def generate_random_static_queries(count_profiles: int = 10, count_posts: int = 4) -> list[tuple[str, Optional[str]]]:
+    """
+    Generates a dynamic, randomized set of Google search dorks on every run.
+    Randomly samples and combines roles, startup themes, and tech hubs,
+    guaranteeing fresh, diverse lead results on every execution without exhausting search credits.
+    """
+    import random
+    queries = []
+    used_combos = set()
+    attempts = 0
+
+    # 1. Randomized Profile Queries (Full index depth)
+    while len(queries) < count_profiles and attempts < 100:
+        attempts += 1
+        r = random.choice(ROLE_SETS)
+        t = random.choice(STARTUP_THEMES)
+        l = random.choice(LOCATION_SETS)
+        key = f"{r}_{t}_{l}"
+        if key in used_combos:
+            continue
+        used_combos.add(key)
+        q = f'site:linkedin.com/in {r} {t} {l} -intern -student'
+        queries.append((q, None))
+
+    # 2. Randomized Post Queries (Fresh hiring signals from past 7 days)
+    used_post_combos = set()
+    post_attempts = 0
+    while len(queries) < (count_profiles + count_posts) and post_attempts < 50:
+        post_attempts += 1
+        sig = random.choice(POST_HIRING_SIGNALS)
+        role = random.choice(['"Product Manager" OR "APM"', '"Head of Product" OR "Product Lead"', '"Growth PM" OR "Founding PM"'])
+        theme = random.choice(['"Startup" OR "SaaS"', '"Fintech" OR "D2C"', '"AI" OR "Tech"', '"Early Stage"'])
+        loc = random.choice(['"India"', '"Bangalore" OR "Delhi NCR"', '"Gurgaon" OR "Noida"', '"Mumbai" OR "Remote"'])
+        
+        post_key = f"{sig}_{role}_{theme}_{loc}"
+        if post_key in used_post_combos:
+            continue
+        used_post_combos.add(post_key)
+        q_post = f'site:linkedin.com/posts "{sig}" {role} {theme} {loc} -intern -student'
+        queries.append((q_post, "qdr:w"))
+
+    return queries
+
 
 # ─── Layer 2: LinkedIn Jobs → Leaders (Tightened to 2-3 queries max) ─────────
 JOB_SOURCING_QUERIES = [
@@ -244,22 +320,19 @@ class DiscoveryAgent:
             url = "https://" + url.lstrip("http://")
         return url
 
-    # ─── Layer 1: Static Queries ───────────────────────────────────────────────
+    # ─── Layer 1: Combinatorial Random Queries ─────────────────────────────────
 
     def _gather_static_leads(self, progress, task) -> list:
         results = []
-        total = len(STATIC_PROFILE_QUERIES) + len(STATIC_POST_QUERIES)
-        progress.update(task, total=total, description="Layer 1: Static queries...")
+        # Generate fresh randomized queries for this run
+        dynamic_queries = generate_random_static_queries(count_profiles=10, count_posts=4)
+        progress.update(task, total=len(dynamic_queries), description="Layer 1: Running randomized startup dorks...")
 
-        for query, tbs in STATIC_PROFILE_QUERIES:
+        for query, tbs in dynamic_queries:
             results.extend(self._serper_search(query, tbs=tbs))
             progress.advance(task)
 
-        for query, tbs in STATIC_POST_QUERIES:
-            results.extend(self._serper_search(query, tbs=tbs))
-            progress.advance(task)
-
-        console.print(f"[dim]  Layer 1: {len(results)} raw results[/dim]")
+        console.print(f"[dim]  Layer 1: {len(results)} raw results from {len(dynamic_queries)} dynamic keyword combinations[/dim]")
         return results
 
     # ─── Layer 2: Jobs → Companies → Leaders ──────────────────────────────────
