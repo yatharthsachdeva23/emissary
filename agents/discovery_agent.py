@@ -88,14 +88,13 @@ Candidate Profile:
 Generate exactly 12 unique Google search dorks to find high-value LinkedIn profiles of executive decision-makers at STARTUPS and HIGH-GROWTH COMPANIES in India who could hire this candidate for a Product Management / APM / AI PM / Growth internship.
 
 Rules:
-- STRICTLY EXCLUDE Big Tech and Giant Multinationals (Google, Microsoft, Amazon, Meta, Apple, Netflix, Uber, Walmart, Salesforce, Swiggy, Zomato, Flipkart, Adobe, LinkedIn, etc.).
-- Focus 100% on Startups (Seed, Series A, Series B, Bootstrapped, Early-Stage, Scale-ups).
 - Mix profile queries (site:linkedin.com/in) and post queries (site:linkedin.com/posts).
-- Target key decision-maker roles: CEO, Founder, Co-Founder, COO, VP of Product, VP of Growth, VP of Marketing, Head of Product, Head of Brand, Product Manager, APM, Product Lead, Brand Manager, Growth Manager.
-- Incorporate core business & product keywords: product, brand, building, business, growth, funnel, user research, roadmap, product strategy, d2c, fintech, b2b saas.
-- Target regions: Delhi NCR, Gurgaon, Noida, Bangalore, Mumbai, Hyderabad, Pune, Remote.
-- NEVER hardcode a specific year. NEVER use "intern" or "student" as required keywords (only as exclusions: -intern -student).
-- Each query must be meaningfully different.
+- Target key decision-maker roles: "Founder", "Co-Founder", "CEO", "Head of Product", "VP Product", "Product Manager", "APM", "Growth Product Manager", "Product Lead".
+- Target Startup & domain keywords: "Startup", "Seed", "Series A", "Bootstrapped", "B2B SaaS", "Fintech", "D2C", "AI Product", "Consumer Tech", "Early Stage".
+- Target Indian locations: "India", "Bangalore", "Bengaluru", "Delhi NCR", "Gurgaon", "Noida", "Mumbai", "Pune", "Hyderabad".
+- Always exclude interns and students using -intern -student.
+- CRITICAL SYNTAX RULE: NEVER add company exclusions like -google, -microsoft, or -linkedin to the query string! Doing so breaks Google search. Focus on positive keywords like "Startup" OR "SaaS" OR "Fintech".
+- Each query must be clean, valid Google search syntax.
 
 Return ONLY a JSON array of 12 query strings:
 ```json
@@ -290,6 +289,12 @@ class DiscoveryAgent:
         companies = self._extract_json(raw_text or "") if raw_text else None
 
         if not companies or not isinstance(companies, list):
+            # Regex fallback to extract company names from quotes if JSON markdown wrapper failed
+            matches = re.findall(r'"([^"]+)"', raw_text or "")
+            if matches:
+                companies = [m.strip() for m in matches if len(m.strip()) > 2 and m.lower() not in ("json", "company1", "company2", "company3", "company4", "company5")]
+
+        if not companies or not isinstance(companies, list):
             console.print("[dim]  Layer 2: Could not extract companies. Skipping.[/dim]")
             return []
 
@@ -302,8 +307,7 @@ class DiscoveryAgent:
         progress.update(task, total=progress._tasks[task].total + len(companies),
                         description="Layer 2: Searching for leaders...")
         for company in companies:
-            q = (f'site:linkedin.com/in "CEO" OR "Founder" OR "Co-Founder" OR "COO" OR '
-                 f'"Head of Product" OR "VP Product" OR "Product Manager" OR "Brand Manager" "{company}" "India" -intern')
+            q = (f'site:linkedin.com/in ("Founder" OR "Co-Founder" OR "CEO" OR "Head of Product" OR "VP Product" OR "Product Manager") "{company}" "India" -intern')
             leader_results.extend(self._serper_search(q))
             progress.advance(task)
 
@@ -330,11 +334,24 @@ class DiscoveryAgent:
         dorks = self._extract_json(raw_text or "") if raw_text else None
 
         if not dorks or not isinstance(dorks, list):
+            # Regex fallback
+            matches = re.findall(r'"(site:linkedin\.com/[^"]+)"', raw_text or "")
+            if matches:
+                dorks = matches
+
+        if not dorks or not isinstance(dorks, list):
             console.print("[dim]  Layer 3: Could not generate dorks. Skipping.[/dim]")
             return []
 
-        # Sanitise: must be strings, cap at 12
-        dorks = [d for d in dorks if isinstance(d, str)][:12]
+        # Sanitise: must be strings, cap at 12, remove negative exclusions that break Google search
+        clean_dorks = []
+        for d in dorks:
+            if isinstance(d, str) and "site:linkedin.com" in d:
+                # Strip accidental -linkedin or -google negative operator chains
+                d_clean = re.sub(r'-(?:linkedin|google|microsoft|amazon|meta|apple|netflix|uber|walmart|salesforce|swiggy|zomato|flipkart|adobe)\b', '', d, flags=re.IGNORECASE)
+                d_clean = " ".join(d_clean.split()).strip()
+                clean_dorks.append(d_clean)
+        dorks = clean_dorks[:12]
         console.print(f"[dim]  Layer 3: Running {len(dorks)} dynamic queries[/dim]")
 
         results = []
