@@ -148,7 +148,7 @@ class DiscoveryAgent:
 
     # ─── Core Search ──────────────────────────────────────────────────────────
 
-    def _serper_search(self, query: str, num: int = 15, tbs: Optional[str] = None) -> list:
+    def _serper_search(self, query: str, num: int = 10, tbs: Optional[str] = None) -> list:
         if not self.serper_key or self.serper_key.startswith("your_"):
             return []
         headers = {"X-API-KEY": self.serper_key, "Content-Type": "application/json"}
@@ -597,8 +597,6 @@ class DiscoveryAgent:
             role = (lead.get("role") or "").lower()
             name = (lead.get("name") or "").lower()
             company = (lead.get("company") or "").lower().strip()
-            snippet = (lead.get("snippet") or "").lower()
-            text = f"{name} {role} {company} {snippet}"
 
             # Must have a valid, non-empty company name
             if not company or company in ("—", "null", "none", "unknown", "undefined"):
@@ -606,8 +604,10 @@ class DiscoveryAgent:
             # Must not be an intern or student
             if any(kw in role or kw in name for kw in INTERN_KEYWORDS):
                 return False
-            # Must NOT be Big Tech or giant multinational
-            if any(kw in text for kw in BIG_TECH_KEYWORDS):
+            # Must NOT currently work at Big Tech or giant multinational
+            if any(kw in company for kw in BIG_TECH_KEYWORDS):
+                return False
+            if any(f"at {kw}" in role or f"@{kw}" in role for kw in BIG_TECH_KEYWORDS):
                 return False
             return True
 
