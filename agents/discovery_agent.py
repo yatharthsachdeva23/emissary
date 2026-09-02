@@ -32,33 +32,34 @@ LEADS_PATH = DATA_DIR / "leads_today.json"
 SEEN_PATH = DATA_DIR / "seen_profiles.json"
 SERPER_URL = "https://google.serper.dev/search"
 
-# ─── Layer 1: Static fresh-signal queries ─────────────────────────────────────
-# These are broad, role-targeted profile queries using tbs=qdr:m (past month)
-# so results rotate daily as Google indexes newly updated profiles.
+# ─── Layer 1: Static Profile & Post Queries (10 queries total) ───────────────
 STATIC_PROFILE_QUERIES = [
-    # CEOs, Founders, Co-Founders & COOs (Building, Brand, Growth)
-    ('site:linkedin.com/in "CEO" OR "Founder" OR "Co-Founder" OR "COO" "building" "product" OR "brand" "India" -intern', "qdr:m"),
-    ('site:linkedin.com/in "CEO" OR "Co-Founder" "business" OR "growth" "India" -intern', "qdr:m"),
-    # Product, Brand, Marketing & Growth Leaders
-    ('site:linkedin.com/in "VP Product" OR "VP Growth" OR "VP Marketing" "building" "India" -intern', "qdr:m"),
-    ('site:linkedin.com/in "Head of Product" OR "Head of Growth" OR "Head of Brand" "India" -intern', "qdr:m"),
-    ('site:linkedin.com/in "Product Manager" OR "Brand Manager" OR "Marketing Manager" "growth" "India" -intern', "qdr:m"),
-    ('site:linkedin.com/in "Growth Manager" OR "Product Lead" OR "Group Product Manager" "India" -intern', "qdr:m"),
-    # Big Tech product, brand & marketing leaders
-    ('site:linkedin.com/in "Group Product Manager" OR "Director of Product" "Google" OR "Microsoft" OR "Amazon" "India" -intern', None),
+    # Startup Founders & C-Level Executives
+    ('site:linkedin.com/in ("Founder" OR "Co-Founder" OR "CEO") ("Product" OR "Growth") ("Startup" OR "Seed" OR "Series A" OR "Bootstrapped") "India" -intern -student', "qdr:m"),
+    ('site:linkedin.com/in ("Founder" OR "Co-Founder") ("SaaS" OR "Fintech" OR "E-commerce" OR "D2C") "Delhi NCR" OR "Gurgaon" OR "Noida" -intern -student', "qdr:m"),
+    ('site:linkedin.com/in ("Founder" OR "Co-Founder" OR "CEO") ("B2B" OR "SaaS" OR "Product") "Pune" OR "Mumbai" OR "Hyderabad" -intern -student', "qdr:m"),
+    ('site:linkedin.com/in ("Co-Founder" OR "COO") ("Product" OR "Building" OR "Growth") "Bengaluru" OR "Bangalore" -intern -student', "qdr:m"),
+    # Product Leaders & VPs at Startups
+    ('site:linkedin.com/in ("Head of Product" OR "VP Product" OR "Director of Product") ("SaaS" OR "Fintech" OR "B2B" OR "D2C" OR "Consumer") "India" -intern -student', "qdr:m"),
+    ('site:linkedin.com/in ("Head of Product" OR "VP Product" OR "Product Manager") "Delhi NCR" OR "Gurgaon" OR "Noida" OR "Remote" -intern -student', "qdr:m"),
+    # Product Managers & APMs at Startups
+    ('site:linkedin.com/in ("Product Manager" OR "APM" OR "Lead Product Manager") ("Startup" OR "Scaleup" OR "Early stage") "India" -intern -student', "qdr:m"),
+    ('site:linkedin.com/in ("Product Manager" OR "APM" OR "Product Strategy") ("AI" OR "Fintech" OR "B2B" OR "SaaS") "India" -intern -student', "qdr:m"),
+    ('site:linkedin.com/in ("Growth Product Manager" OR "Product Lead" OR "Group Product Manager") "Bengaluru" OR "Bangalore" OR "Gurgaon" OR "Delhi NCR" -intern -student', "qdr:m"),
+    ('site:linkedin.com/in ("Head of Growth" OR "VP Growth" OR "Growth Manager") ("Startup" OR "SaaS" OR "D2C" OR "Fintech") "India" -intern -student', "qdr:m"),
 ]
 
 # Active hiring signals — post queries use tbs=qdr:w (past week) for maximum freshness
 STATIC_POST_QUERIES = [
-    ('site:linkedin.com/posts "we are hiring" "Product Manager" OR "Brand Manager" OR "Marketing Manager" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "hiring" "APM" OR "Product Lead" OR "Growth Manager" "building" "India" -intern', "qdr:w"),
-    ('site:linkedin.com/posts "looking for" "Product Manager" OR "AI PM" "business" OR "brand" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "we are hiring" "Product Manager" OR "APM" OR "Growth Manager" "Startup" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "hiring" "Product Lead" OR "Head of Product" OR "APM" "building" "India" -intern', "qdr:w"),
+    ('site:linkedin.com/posts "looking for" "Product Manager" OR "APM" ("SaaS" OR "Fintech" OR "D2C" OR "Startup") "India" -intern', "qdr:w"),
 ]
 
 # ─── Layer 2: LinkedIn Jobs → Leaders (Tightened to 2-3 queries max) ─────────
 JOB_SOURCING_QUERIES = [
-    'site:linkedin.com/jobs/view "Product Manager" OR "AI PM" "growth" OR "building" "India"',
-    'site:linkedin.com/jobs/view "Brand Manager" OR "Growth Manager" OR "APM" "India"',
+    'site:linkedin.com/jobs/view ("Product Manager" OR "APM") ("Startup" OR "SaaS" OR "Fintech") "India"',
+    'site:linkedin.com/jobs/view ("Growth Manager" OR "Head of Product") ("Startup" OR "Early Stage") "India"',
 ]
 
 COMPANY_EXTRACTION_PROMPT = """You are a parsing assistant. Extract unique company names from the following LinkedIn job posting titles and snippets.
@@ -69,33 +70,34 @@ Raw postings:
 Rules:
 - Only extract companies that appear to be operating or hiring in India.
 - Skip global staffing agencies (e.g., Jobgether, Huptech HR, Converse Placement).
-- Skip very large multinational corporations (Google, Amazon, Microsoft, Apple, Meta, Flipkart, Swiggy, Zomato).
-- Focus on startups, scale-ups, and growth-stage tech companies.
-- Return at most 1 company name.
+- Skip very large multinational corporations (Google, Amazon, Microsoft, Apple, Meta, Flipkart, Swiggy, Zomato, Walmart, Uber).
+- Focus strictly on startups, scale-ups, bootstrapped startups, and growth-stage tech companies.
+- Return at most 5 unique startup company names.
 
 Return ONLY a JSON array of strings:
 ```json
-["company1"]
+["company1", "company2", "company3", "company4", "company5"]
 ```"""
 
 # ─── Layer 3: Dynamic AI-generated dorks (12 queries) ─────────────────────────
-DYNAMIC_DORK_PROMPT = """You are a lead-generation assistant for an internship outreach tool targeting Product Management, Brand, and Growth leadership roles.
+DYNAMIC_DORK_PROMPT = """You are a lead-generation assistant for an internship outreach tool targeting Product Management, Brand, and Growth leadership roles at Startups.
 
 Candidate Profile:
 {profile_summary}
 
-Generate exactly 12 unique Google search dorks to find high-value LinkedIn profiles of executive decision-makers who could hire this candidate for an AI Product Management / APM / PM internship.
+Generate exactly 12 unique Google search dorks to find high-value LinkedIn profiles of executive decision-makers at STARTUPS and HIGH-GROWTH COMPANIES in India who could hire this candidate for a Product Management / APM / AI PM / Growth internship.
 
 Rules:
+- STRICTLY EXCLUDE Big Tech and Giant Multinationals (Google, Microsoft, Amazon, Meta, Apple, Netflix, Uber, Walmart, Salesforce, Swiggy, Zomato, Flipkart, Adobe, LinkedIn, etc.).
+- Focus 100% on Startups (Seed, Series A, Series B, Bootstrapped, Early-Stage, Scale-ups).
 - Mix profile queries (site:linkedin.com/in) and post queries (site:linkedin.com/posts).
-- Target key roles: CEO, Founder, Co-Founder, COO, VP of Product, VP of Growth, VP of Marketing, Head of Product, Head of Brand, Product Manager, Marketing Manager, Brand Manager, Growth Manager, Product Lead.
-- Incorporate core business & product keywords into query variations: product, brand, building, business, growth.
-- Target regions: Delhi NCR, Gurgaon, Noida, Bangalore, Remote.
-- Use varied Product & AI domains matching candidate: AI Product Management, Agentic AI, RAG Systems, Vector DBs, Search Optimization, B2B Automation, Funnel Growth, Urban Governance, Predictive Analytics.
+- Target key decision-maker roles: CEO, Founder, Co-Founder, COO, VP of Product, VP of Growth, VP of Marketing, Head of Product, Head of Brand, Product Manager, APM, Product Lead, Brand Manager, Growth Manager.
+- Incorporate core business & product keywords: product, brand, building, business, growth, funnel, user research, roadmap, product strategy, d2c, fintech, b2b saas.
+- Target regions: Delhi NCR, Gurgaon, Noida, Bangalore, Mumbai, Hyderabad, Pune, Remote.
 - NEVER hardcode a specific year. NEVER use "intern" or "student" as required keywords (only as exclusions: -intern -student).
-- Each query must be meaningfully different — avoid repeating the same role+tech combo.
+- Each query must be meaningfully different.
 
-Return ONLY a JSON array of 12 query strings (no tbs, no extra fields):
+Return ONLY a JSON array of 12 query strings:
 ```json
 ["query1", "query2", ...]
 ```"""
@@ -146,7 +148,7 @@ class DiscoveryAgent:
 
     # ─── Core Search ──────────────────────────────────────────────────────────
 
-    def _serper_search(self, query: str, num: int = 10, tbs: Optional[str] = None) -> list:
+    def _serper_search(self, query: str, num: int = 15, tbs: Optional[str] = None) -> list:
         if not self.serper_key or self.serper_key.startswith("your_"):
             return []
         headers = {"X-API-KEY": self.serper_key, "Content-Type": "application/json"}

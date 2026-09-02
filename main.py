@@ -141,7 +141,7 @@ def main():
             sys.exit(1)
 
     # ── Time Check Safeguard ───────────────────────────────────────────────
-    if not (flags["setup_session"] or flags["dry_run"] or flags["test_mode"] or flags["ghost_run"]):
+    if not (flags["setup_session"] or flags["dry_run"] or flags["test_mode"] or flags["ghost_run"] or flags["skip_send"] or flags["resume"]):
         current_hour = datetime.now().hour
         if current_hour < 8 or current_hour >= 19:
             console.print(f"\n[yellow]⚠ Current time: {datetime.now().strftime('%H:%M')}[/yellow]")

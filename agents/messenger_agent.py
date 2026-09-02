@@ -311,14 +311,14 @@ class MessengerAgent:
 
     def _verify_profile_criteria(self, page, name: str) -> bool:
         """
-        Verify location is India, and connections >= 500 (or followers >= 500).
+        Verify location is India, connections >= 500 (or followers >= 500), and experience is valid.
         Priority:
-        1. Check connections count in top card. If 500+ connections/mutual, return True.
-        2. If numeric connections count < 500 in top card, check followers in top card.
-        3. Check followers count in top card. If >= 500, return True.
-        4. Check Activity section followers count. If >= 500, return True.
-        5. Else, fail.
+        1. Check direct connection link in header. If 500+ connections/mutual, return True.
+        2. Check direct followers link in header. If >= 500, return True.
+        3. Check Activity section followers count. If >= 500, return True.
+        4. Validate Experience section does not indicate current role is an intern/student.
         """
+        import re
         try:
             top_card = page.locator("div.pv-top-card-layout__elements, div[class*='pv-top-card-layout'], main section, .pv-top-card").first
             try:
@@ -352,55 +352,118 @@ class MessengerAgent:
                 console.print(f"  [yellow]  ⚠ Profile location does not contain 'India'. Skipping.[/yellow]")
                 return False
 
-            import re
-            if "500+ connections" in top_card_text or "500+\nconnections" in top_card_text or "500+ mutual connections" in top_card_text or "500+ mutual" in top_card_text:
-                console.print(f"  [green]  ✓ Verified 500+ connections in header.[/green]")
-                return True
+            has_valid_reach = False
 
-            conn_match = re.search(r'([\d,]+)\s+connections?', top_card_text)
-            if conn_match:
-                num_str = conn_match.group(1).replace(',', '')
-                try:
-                    count = int(num_str)
-                    if count >= 500:
-                        console.print(f"  [green]  ✓ Verified {count} connections in header.[/green]")
-                        return True
+            # ── 1. Direct Targeted DOM check for connections link ────────────
+            try:
+                conn_loc = page.locator("a[href*='connections'], a[href*='network-info'], li:has-text('connections'), span:has-text('connections')").first
+                if conn_loc.is_visible(timeout=1000):
+                    conn_text = conn_loc.inner_text().lower().strip()
+                    if "500+" in conn_text or "500 + " in conn_text:
+                        console.print(f"  [green]  ✓ Verified 500+ connections in header link.[/green]")
+                        has_valid_reach = True
                     else:
-                        console.print(f"  [dim]  Connections count in header is {count} (< 500). Checking followers...[/dim]")
-                except ValueError:
+                        m = re.search(r'\b(\d{1,3}(?:,\d{3})*|\d{1,6})\b', conn_text)
+                        if m:
+                            c = int(m.group(1).replace(',', ''))
+                            if 500 <= c <= 500_000:
+                                console.print(f"  [green]  ✓ Verified {c} connections in header link.[/green]")
+                                has_valid_reach = True
+                            else:
+                                console.print(f"  [dim]  Connections count in header link is {c} (< 500). Checking followers...[/dim]")
+            except Exception:
+                pass
+
+            # ── 2. Direct Targeted DOM check for followers link ──────────────
+            if not has_valid_reach:
+                try:
+                    fol_loc = page.locator("a[href*='recent-activity'], li:has-text('followers'), span:has-text('followers')").first
+                    if fol_loc.is_visible(timeout=1000):
+                        fol_text = fol_loc.inner_text().lower().strip()
+                        m = re.search(r'\b(\d{1,3}(?:,\d{3})*|\d{1,6})\b', fol_text)
+                        if m:
+                            c = int(m.group(1).replace(',', ''))
+                            # Sanity bound (500 to 5,000,000) prevents capturing entity URN/telemetry IDs
+                            if 500 <= c <= 5_000_000:
+                                console.print(f"  [green]  ✓ Verified {c} followers in header link.[/green]")
+                                has_valid_reach = True
+                            else:
+                                console.print(f"  [dim]  Followers count in header link is {c} (< 500).[/dim]")
+                except Exception:
                     pass
 
-            fol_match = re.search(r'([\d,]+)\s+followers', top_card_text)
-            if fol_match:
-                num_str = fol_match.group(1).replace(',', '')
+            # ── 3. Top Card Text Parsing Fallback ────────────────────────────
+            if not has_valid_reach:
+                if "500+ connections" in top_card_text or "500+\nconnections" in top_card_text or "500+ mutual connections" in top_card_text or "500+ mutual" in top_card_text:
+                    console.print(f"  [green]  ✓ Verified 500+ connections in header.[/green]")
+                    has_valid_reach = True
+                else:
+                    conn_match = re.search(r'\b(\d{1,3}(?:,\d{3})*|\d{1,6})\s+connections?\b', top_card_text)
+                    if conn_match:
+                        num_str = conn_match.group(1).replace(',', '')
+                        try:
+                            count = int(num_str)
+                            if 500 <= count <= 500_000:
+                                console.print(f"  [green]  ✓ Verified {count} connections in header.[/green]")
+                                has_valid_reach = True
+                            else:
+                                console.print(f"  [dim]  Connections count in header is {count} (< 500). Checking followers...[/dim]")
+                        except ValueError:
+                            pass
+
+                if not has_valid_reach:
+                    fol_match = re.search(r'\b(\d{1,3}(?:,\d{3})*|\d{1,6})\s+followers\b', top_card_text)
+                    if fol_match:
+                        num_str = fol_match.group(1).replace(',', '')
+                        try:
+                            count = int(num_str)
+                            if 500 <= count <= 5_000_000:
+                                console.print(f"  [green]  ✓ Verified {count} followers in header.[/green]")
+                                has_valid_reach = True
+                            else:
+                                console.print(f"  [dim]  Followers count in header is {count} (< 500).[/dim]")
+                        except ValueError:
+                            pass
+
+            # ── 4. Activity Section Followers Check ──────────────────────────
+            if not has_valid_reach:
                 try:
-                    count = int(num_str)
-                    if count >= 500:
-                        console.print(f"  [green]  ✓ Verified {count} followers in header.[/green]")
-                        return True
-                    else:
-                        console.print(f"  [dim]  Followers count in header is {count} (< 500).[/dim]")
-                except ValueError:
+                    activity_section = page.locator("section:has(h2:has-text('Activity')), section:has(h2:text-is('Activity')), section:has(a[href*='/detail/recent-activity/'])").first
+                    if activity_section.is_visible(timeout=2000):
+                        activity_text = activity_section.inner_text().lower()
+                        act_fol_match = re.search(r'\b(\d{1,3}(?:,\d{3})*|\d{1,6})\s+followers\b', activity_text)
+                        if act_fol_match:
+                            num_str = act_fol_match.group(1).replace(',', '')
+                            try:
+                                count = int(num_str)
+                                if 500 <= count <= 5_000_000:
+                                    console.print(f"  [green]  ✓ Verified {count} followers in Activity section.[/green]")
+                                    has_valid_reach = True
+                                else:
+                                    console.print(f"  [dim]  Followers in Activity section is {count} (< 500).[/dim]")
+                            except ValueError:
+                                pass
+                except Exception:
                     pass
 
-            activity_section = page.locator("section:has(h2:has-text('Activity')), section:has(h2:text-is('Activity')), section:has(a[href*='/detail/recent-activity/'])").first
-            if activity_section.is_visible(timeout=2000):
-                activity_text = activity_section.inner_text().lower()
-                act_fol_match = re.search(r'([\d,]+)\s+followers', activity_text)
-                if act_fol_match:
-                    num_str = act_fol_match.group(1).replace(',', '')
-                    try:
-                        count = int(num_str)
-                        if count >= 500:
-                            console.print(f"  [green]  ✓ Verified {count} followers in Activity section.[/green]")
-                            return True
-                        else:
-                            console.print(f"  [dim]  Followers in Activity section is {count} (< 500).[/dim]")
-                    except ValueError:
-                        pass
+            if not has_valid_reach:
+                console.print(f"  [yellow]  ⚠ Profile has less than 500 connections/followers in relevant areas.[/yellow]")
+                return False
 
-            console.print(f"  [yellow]  ⚠ Profile has less than 500 connections/followers in relevant areas.[/yellow]")
-            return False
+            # ── 5. Experience Section Sanity Guard ───────────────────────────
+            try:
+                exp_section = page.locator("section:has(h2:has-text('Experience')), section:has(h2:text-is('Experience'))").first
+                if exp_section.is_visible(timeout=1500):
+                    exp_text = exp_section.inner_text().lower()
+                    # Check if their current/active role is just a student or intern
+                    first_exp_chunk = exp_text[:400]
+                    if any(term in first_exp_chunk for term in ["intern at", "internship at", "student at", "undergraduate at", "trainee at", "fresher at"]):
+                        console.print(f"  [yellow]  ⚠ Current experience indicates intern/student. Skipping.[/yellow]")
+                        return False
+            except Exception:
+                pass
+
+            return True
 
         except Exception as e:
             console.print(f"  [dim]  ⚠ Could not verify pre-criteria for {name}: {e}. Proceeding (failsafe).[/dim]")
@@ -879,7 +942,8 @@ class MessengerAgent:
                                 except Exception:
                                     pass
 
-                            console.print(f"\n  [{self.sent_count + 1}/{len(leads)}] {name} @ {lead.get('company', '?')} ({url})")
+                            visit_idx = batch_start + i + 1
+                            console.print(f"\n  [{visit_idx}/{len(leads)}] {name} @ {lead.get('company', '?')} ({url})")
 
                             if not url:
                                 console.print(f"  [yellow]  ⚠ No URL for {name} — skipping[/yellow]")
