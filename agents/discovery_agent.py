@@ -447,11 +447,8 @@ class DiscoveryAgent:
             return self._mock_leads()
 
         all_results = []
-        # Estimate total progress steps: static + job queries + dynamic (adjusts dynamically)
-        estimated_total = (
-            len(STATIC_PROFILE_QUERIES) + len(STATIC_POST_QUERIES) +
-            len(JOB_SOURCING_QUERIES)
-        )
+        # Estimate total progress steps: 14 static/post queries + job queries + 12 dynamic dorks
+        estimated_total = 14 + len(JOB_SOURCING_QUERIES) + 12
         with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as prog:
             task = prog.add_task("Discovery Engine starting...", total=estimated_total)
 
