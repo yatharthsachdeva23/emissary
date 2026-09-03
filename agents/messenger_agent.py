@@ -325,16 +325,15 @@ class MessengerAgent:
 
     def _verify_pre_criteria(self, page, lead: dict) -> bool:
         """
-        Verify location is India, and connections >= 500 (or followers >= 500).
-        Priority (Strictly matching NoBrokerHood production logic):
+        Verify connections >= 500 (or followers >= 500), and target is not intern/Big Tech.
+        Priority:
         1. Extract top card and wait up to 6s for elements to hydrate (instead of skeleton placeholders).
-        2. Location must contain 'India' in top card or body.
-        3. Check connections count in top card. If 500+ connections/mutual, verified.
-        4. If numeric connections count < 500 in top card, do not proceed with connections (check followers).
-        5. Check followers count in top card. If >= 500, verified.
-        6. If not found or < 500, locate Activity section and check followers count there. If >= 500, verified.
-        7. Verify headline and experience do NOT indicate intern/student or current Big Tech.
-        8. Else, fail and return False.
+        2. Check connections count in top card. If 500+ connections/mutual, verified.
+        3. If numeric connections count < 500 in top card, do not proceed with connections (check followers).
+        4. Check followers count in top card. If >= 500, verified.
+        5. If not found or < 500, locate Activity section and check followers count there. If >= 500, verified.
+        6. Verify headline and experience do NOT indicate intern/student or current Big Tech.
+        7. Else, fail and return False.
         """
         name = lead.get("name", "Unknown")
         try:
@@ -352,7 +351,7 @@ class MessengerAgent:
             for _ in range(12):
                 try:
                     txt = top_card.inner_text().lower()
-                    if txt and ("connections" in txt or "follower" in txt or "india" in txt):
+                    if txt and ("connections" in txt or "follower" in txt):
                         top_card_text = txt
                         break
                 except Exception:
@@ -370,16 +369,6 @@ class MessengerAgent:
                         top_card_text = page.locator("body").inner_text()[:1000].lower()
                     except Exception:
                         top_card_text = ""
-
-            # Check Location: Must contain 'India' (can check top card or whole body)
-            try:
-                body_text_lower = page.locator("body").inner_text().lower()
-            except Exception:
-                body_text_lower = ""
-
-            if "india" not in top_card_text and "india" not in body_text_lower:
-                console.print(f"  [yellow]  ⚠ Profile location does not contain 'India'.[/yellow]")
-                return False
 
             # Check Connections in Top Card
             import re
@@ -904,22 +893,16 @@ class MessengerAgent:
 
         daily_limit = get_effective_daily_limit(int(os.getenv("DAILY_SEND_LIMIT", "50")))
         leads = leads[:daily_limit]
-        sent_counts_by_company = {}
 
         if dry_run:
             console.print(f"[yellow]DRY RUN: Would send {len(leads)} blank connection requests (no browser)[/yellow]")
             for i, lead in enumerate(leads, 1):
                 company = lead.get('company', '?')
-                if sent_counts_by_company.get(company, 0) >= 2:
-                    console.print(f"  [{i}] {lead.get('name', '?')} @ {company} → [dim]On Hold (Company cap reached)[/dim]")
-                    lead["status"] = "On Hold"
-                    continue
                 console.print(
                     f"  [{i}] {lead.get('name', '?')} @ {company} → "
                     f"{lead.get('linkedin_url', '?')}"
                 )
                 lead["status"] = "dry_run"
-                sent_counts_by_company[company] = sent_counts_by_company.get(company, 0) + 1
             return leads
 
         if ghost_run:
@@ -959,15 +942,7 @@ class MessengerAgent:
                             company = lead.get("company", "Unknown")
                             url = lead.get("linkedin_url", "")
 
-                            # 1. Company Connection Capping Check (Max 2 per company per run)
-                            if sent_counts_by_company.get(company, 0) >= 2:
-                                console.print(f"  [dim]  - Company connection limit reached for {company} (max 2). Marking {name} 'On Hold'.[/dim]")
-                                lead["status"] = "On Hold"
-                                self.skipped_count += 1
-                                self.results.append(lead)
-                                continue
-
-                            # 2. Check if already processed in this or a previous run
+                            # Check if already processed in this or a previous run
                             if url:
                                 try:
                                     from agents.discovery_agent import DiscoveryAgent
@@ -1046,7 +1021,6 @@ class MessengerAgent:
                                 self.sent_count += 1
                                 lead["status"] = "Blank Sent"
                                 lead["sent_at"] = datetime.now().isoformat()
-                                sent_counts_by_company[company] = sent_counts_by_company.get(company, 0) + 1
                                 console.print(f"  [green]  ✓ Blank request sent to {name} @ {company}![/green]")
                                 # Log immediately to sheet so we never lose a send
                                 try:
