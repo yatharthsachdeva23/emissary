@@ -308,7 +308,7 @@ def main():
         f"[bold]Run Summary[/bold]\n\n"
         f"  DMs sent         : [bold green]{run_summary['dms_sent']}[/bold green]  (from yesterday's acceptances)\n"
         f"  Leads discovered : {run_summary['leads_discovered']}\n"
-        f"  Notes drafted    : {run_summary['notes_drafted']}\n"
+        f"  DMs drafted      : {run_summary['notes_drafted']}\n"
         f"  Blank requests   : [green]{run_summary['connections_sent']}[/green]\n"
         f"  Skipped          : [yellow]{run_summary['connections_skipped']}[/yellow]\n"
         f"  Feedback applied : {'[green]Yes[/green]' if run_summary['feedback_processed'] else '[dim]No[/dim]'}\n\n"

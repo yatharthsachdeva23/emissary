@@ -53,20 +53,13 @@ HERE ARE {count} LEADS TO DRAFT FOR:
 {leads_payload}
 
 Your Task:
-For EACH lead, return a JSON object with their Name, a 280-character drafted_note, and the final drafted_dm.
+For EACH lead, return a JSON object with their Name and their personalized drafted_dm.
 
 CRITICAL TONE & VOCABULARY RULE:
 - This is a Product Management / APM / Growth role outreach. Do NOT use heavy developer or AI engineering jargon (avoid words like "RAG", "vector DB", "WASM", "semantic retrieval", "Python/Playwright").
 - Focus 100% on Product Management, Business ROI, Execution Velocity, User Growth, and Operational Efficiency.
 
-PIECE 1 - drafted_note (LinkedIn Connection Hook):
-A 280-character hook sent WITH the connection request.
-- Sound like a fellow product builder or business growth strategist, NOT a student asking for a job.
-- Structure: [Specific observation about their product/brand or work] -> [Yatharth's relevant PM internship/project flex] -> [Soft, confident close]
-- No URLs, no "Hi [Name]", no resume links. STRICTLY under 280 characters.
-- No em dashes. Use commas or periods to separate thoughts.
-
-PIECE 2 - drafted_dm (4 paragraphs in strict order):
+drafted_dm (4 paragraphs in strict order):
 
 PARAGRAPH 1 - Opening Compliment (CRITICAL RULE: DO NOT start with "Thanks for connecting" or any greeting. No em dashes.):
   The first line must feel like you specifically researched this person. Make them feel seen.
@@ -100,7 +93,6 @@ Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
 [
   {{
     "name": "Lead Name",
-    "drafted_note": "The 280-char connection hook (no em dashes, no URLs)...",
     "drafted_dm": "[Specific compliment. Startup gets company+person. Big Tech gets only the person. No em dashes.].\\n\\nThis is not a regular cold message. I built Emissary, an autonomous system that runs daily, analyzes market leads, and delivers personalized outreach. This message was delivered to you by that same automation.\\n\\nI am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood. Alongside this, I built [Most Relevant Project/Experience], [what it does]. In it, I [specific product achievement 1] and [specific product achievement 2], which I think relates to what you are working on.\\n\\nI am actively looking for a 2-month AI Product Management / APM internship. If you find my approach interesting and have bandwidth for a curious product builder, I would love to schedule a quick chat at your convenience.\\n\\nHere is my resume: {resume_link}"
   }}
 ]"""
@@ -109,7 +101,7 @@ Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
 STARTUP_BULK_PROMPT = """You are the advanced creative drafting engine for "Emissary," a custom autonomous networking pipeline engineered by Yatharth. Yatharth is a 4th-year student at Delhi Technological University (DTU) with a 9.3 CGPA and former AI PM Intern at NoBrokerHood. He specializes in Product Management, zero-touch sales automation, search algorithm optimization, and product strategy.
 
 YOUR TASK:
-I will provide a JSON array of raw lead profiles scraped from early-stage, bootstrapped, small/medium software companies and startups. For EACH lead, you must analyze their specific role, company domain, and target team framework to return a JSON object containing their 'Name', an internal 'drafted_note', and a hyper-targeted, aggressive, 3-paragraph 'drafted_dm'.
+I will provide a JSON array of raw lead profiles scraped from early-stage, bootstrapped, small/medium software companies and startups. For EACH lead, you must analyze their specific role, company domain, and target team framework to return a JSON object containing their 'Name' and a hyper-targeted, aggressive, 3-paragraph 'drafted_dm'.
 
 CRITICAL TONE & VOCABULARY RULE:
 - Focus 100% on Product Management, Business Outcomes, Execution Velocity, User Growth, and Operational Leverage.
@@ -117,13 +109,6 @@ CRITICAL TONE & VOCABULARY RULE:
 
 HERE ARE {count} LEADS TO DRAFT FOR:
 {leads_payload}
-
-THE 280-CHARACTER LinkedIn Connection Hook (drafted_note):
-For EACH lead, generate a concise, professional 280-character connection hook (drafted_note) sent WITH the connection request.
-- Sound like a fellow product builder or business growth strategist, NOT a student asking for a job.
-- Structure: [Specific observation about their product/brand or work] -> [Yatharth's relevant PM internship/project flex] -> [Soft, confident close]
-- No URLs, no "Hi [Name]", no resume links. STRICTLY under 280 characters.
-- No em dashes. Use commas or periods to separate thoughts.
 
 THE 3-PARAGRAPH "ROI SALES PITCH" FRAMEWORK (drafted_dm):
 
@@ -158,7 +143,6 @@ Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
 [
   {{
     "name": "Lead Name",
-    "drafted_note": "A 280-char connection hook (no em dashes, no URLs)...",
     "drafted_dm": "[Paragraph 1: Hi [Name], sharp product/business question here]\\n\\n[Paragraph 2: I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood (built 25+ extra leads/month zero-touch outreach & research systems, 4th Rank NMG Labs Agentic AI Hackathon). I do not believe in sending generic template text; the message interaction you are reading right now was targeted, analyzed, and delivered entirely by an autonomous system I built to demonstrate my product capabilities live.]\\n\\n[Paragraph 3: Instead of a traditional, drawn-out hiring sequence, let's run a risk-free valuation trial. Bring me on as an [AI PM / APM / Product Management] Intern for 2 months; if my zero-touch architectures, research systems, and optimization pipelines do not provide immediate leverage to your team, we part ways cleanly. Have a look at my resume, and let me know when you are open for a quick chat this week.\\n\\nHere is my resume: {resume_link}]"
   }}
 ]"""
@@ -267,19 +251,19 @@ class GhostwriterAgent:
             drafted.extend(drafted_su)
 
 
-        # Build lookup map: name -> {drafted_note, drafted_dm}
-        note_map = {}
+        # Build lookup map: name -> {drafted_dm}
+        dm_map = {}
         for item in drafted:
             if isinstance(item, dict) and item.get("name"):
-                note_map[item["name"]] = item
+                dm_map[item["name"]] = item
 
         enriched = []
         for lead in leads:
             name = lead.get("name") or ""
             # Fuzzy match: try exact first, then substring
-            matched = note_map.get(name)
+            matched = dm_map.get(name)
             if not matched and name:
-                for key, val in note_map.items():
+                for key, val in dm_map.items():
                     if not key:
                         continue
                     if key.lower() in name.lower() or name.lower() in key.lower():
@@ -287,11 +271,9 @@ class GhostwriterAgent:
                         break
 
             if matched:
-                note = self._truncate(matched.get("drafted_note", ""), MAX_NOTE_LENGTH)
                 dm = matched.get("drafted_dm", "")
-
-                lead["connection_note"] = note
-                lead["note_length"] = len(note)
+                lead["connection_note"] = ""
+                lead["note_length"] = 0
                 lead["drafted_dm"] = dm
                 lead["status"] = "queued"
                 enriched.append(lead)
@@ -299,14 +281,13 @@ class GhostwriterAgent:
                 if dry_run:
                     console.print(Panel(
                         f"[bold]{name}[/bold] @ {lead.get('company', '?')}\n\n"
-                        f"[bold yellow]Hook ({len(note)} chars):[/bold yellow]\n[cyan]{note}[/cyan]\n\n"
                         f"[bold yellow]DM:[/bold yellow]\n[green]{dm}[/green]",
                         title=f"Draft #{len(enriched)}", border_style="blue",
                     ))
             else:
                 console.print(f"[yellow]  ⚠ No draft generated for {name} — skipping[/yellow]")
 
-        console.print(f"[green]✓ Drafted {len(enriched)}/{len(leads)} notes + DMs[/green]")
+        console.print(f"[green]✓ Drafted {len(enriched)}/{len(leads)} DMs[/green]")
 
         # Persist enriched leads
         if LEADS_PATH.exists() or enriched:
