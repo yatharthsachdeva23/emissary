@@ -250,6 +250,10 @@ class GhostwriterAgent:
 
             if matched:
                 dm = matched.get("drafted_dm", "")
+                # Deterministic enforcement: replace any hallucinated or typo'd Google Drive folder URL with exact verified resume_link
+                if self.resume_link and self.resume_link != "[ADD_YOUR_RESUME_LINK_HERE]":
+                    dm = re.sub(r'https?://drive\.google\.com/drive/folders/[a-zA-Z0-9_-]+', self.resume_link, dm)
+
                 lead["connection_note"] = ""
                 lead["note_length"] = 0
                 lead["drafted_dm"] = dm

@@ -608,6 +608,11 @@ class InboxAgent:
             page.keyboard.press("Control+a")
             page.wait_for_timeout(200)
 
+            # ── Enforce verified RESUME_LINK safety guard ───────────────────────
+            correct_resume_link = os.getenv("RESUME_LINK", "").strip()
+            if correct_resume_link:
+                dm = re.sub(r'https?://drive\.google\.com/drive/folders/[a-zA-Z0-9_-]+', correct_resume_link, dm)
+
             # ── TYPE the DM using real keystrokes ───────────────────────────────
             # CRITICAL: compose_box.fill() does NOT work on contenteditable divs.
             # LinkedIn's React state only updates on real keyboard events (onChange).
