@@ -102,7 +102,8 @@ class FeedbackAgent:
 
         try:
             client, key_label = get_client_with_rotation()
-            resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+            resp = client.models.generate_content(model=model_name, contents=prompt)
             updated = self._extract_json(resp.text)
             if not updated:
                 console.print("[red]Failed to parse updated instructions[/red]")

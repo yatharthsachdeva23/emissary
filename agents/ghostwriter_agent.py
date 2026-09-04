@@ -181,7 +181,8 @@ class GhostwriterAgent:
             p.add_task("", total=None)
             try:
                 from utils.gemini_client import generate_with_rotation
-                resp_text = generate_with_rotation(prompt, model="gemini-2.5-flash")
+                model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+                resp_text = generate_with_rotation(prompt, model=model_name)
                 drafted = self._extract_json(resp_text) or []
                 return drafted
             except Exception as e:

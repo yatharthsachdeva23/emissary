@@ -263,7 +263,8 @@ class DiscoveryAgent:
         """Single Gemini call with automatic round-robin rotation on any errors."""
         try:
             from utils.gemini_client import generate_with_rotation
-            return generate_with_rotation(prompt, model="gemini-2.5-flash")
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+            return generate_with_rotation(prompt, model=model_name)
         except Exception as e:
             console.print(f"[red]❌ {label} failed: {e}[/red]")
             return None

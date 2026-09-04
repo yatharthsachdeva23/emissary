@@ -66,13 +66,14 @@ def has_gemini_keys() -> bool:
 
 def generate_with_rotation(
     prompt: str,
-    model: str = "gemini-2.5-flash",
+    model: str = None,
     max_retries_per_key: int = 1, # Not used directly as we switch keys immediately
 ) -> str:
     """
     Call Gemini with automatic immediate round-robin key rotation on any error.
     Tries all keys in a circular round-robin fashion up to 3 full loops.
     """
+    model = model or os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
     global _current_idx
     keys = _get_keys()
 
