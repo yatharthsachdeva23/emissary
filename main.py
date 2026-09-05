@@ -30,10 +30,11 @@ class DualLogger:
     def __init__(self, original_stream, log_file):
         self.original_stream = original_stream
         self.log_file = log_file
-        self.encoding = "utf-8"
+        self.encoding = getattr(original_stream, "encoding", "utf-8") or "utf-8"
 
     def write(self, message):
         self.original_stream.write(message)
+        self.original_stream.flush()
         self.log_file.write(message)
         self.log_file.flush()
 
@@ -42,7 +43,15 @@ class DualLogger:
         self.log_file.flush()
 
     def isatty(self):
-        return False
+        return getattr(self.original_stream, "isatty", lambda: False)()
+
+    def fileno(self):
+        if hasattr(self.original_stream, "fileno"):
+            try:
+                return self.original_stream.fileno()
+            except Exception:
+                pass
+        raise io.UnsupportedOperation("fileno")
 
 # Setup dual logging to both console and file
 _log_file = open(LOG_FILE_PATH, "a", encoding="utf-8", errors="replace")

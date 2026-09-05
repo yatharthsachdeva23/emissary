@@ -77,7 +77,7 @@ def get_task_xml() -> str:
   <Actions>
     <Exec>
       <Command>{python_path}</Command>
-      <Arguments>"{script_path}" >> "{log_path}" 2>&amp;1</Arguments>
+      <Arguments>"{script_path}"</Arguments>
       <WorkingDirectory>{working_dir}</WorkingDirectory>
     </Exec>
   </Actions>
