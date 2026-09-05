@@ -74,6 +74,7 @@ console = Console()
 
 DATA_DIR = Path("data")
 LEADS_PATH = DATA_DIR / "leads_today.json"
+RAW_LEADS_PATH = DATA_DIR / "raw_leads_today.json"
 LOG_PATH = Path("logs")
 
 
@@ -214,17 +215,60 @@ def main():
             console.print("[dim]Skipping Inbox Agent (dry-run, skip-send, or resume)[/dim]")
 
         # ── Step 3 & 4: Discovery & Ghostwriter (or Resume) ────────────
+        leads = []
         if flags.get("resume"):
+            has_scored_leads = False
+            # Sub-case A: Check for already scored leads in LEADS_PATH
             if LEADS_PATH.exists():
-                with open(LEADS_PATH, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    leads = data.get("leads", [])
-                console.print(f"[bold green]▶ Resuming previous run. Loaded {len(leads)} leads from today's cache ({LEADS_PATH.name}).[/bold green]")
-                run_summary["leads_discovered"] = len(leads)
-                run_summary["notes_drafted"] = len(leads)
+                try:
+                    with open(LEADS_PATH, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        leads = data.get("leads", [])
+                    if leads:
+                        has_scored_leads = True
+                        console.print(f"[bold green]▶ Resuming previous run. Loaded {len(leads)} scored leads from cache ({LEADS_PATH.name}).[/bold green]")
+                        run_summary["leads_discovered"] = len(leads)
+                except Exception as e:
+                    console.print(f"[yellow]Could not load {LEADS_PATH}: {e}[/yellow]")
+
+            # Sub-case B: No scored leads, BUT we have cached raw search results from previous search!
+            if not has_scored_leads:
+                raw_leads = []
+                if RAW_LEADS_PATH.exists():
+                    try:
+                        with open(RAW_LEADS_PATH, "r", encoding="utf-8") as f:
+                            raw_data = json.load(f)
+                            raw_leads = raw_data.get("raw_leads", [])
+                    except Exception as e:
+                        console.print(f"[yellow]Could not load {RAW_LEADS_PATH}: {e}[/yellow]")
+
+                if raw_leads:
+                    console.print(f"[bold green]▶ Found {len(raw_leads)} cached raw search results in {RAW_LEADS_PATH.name}.[/bold green]")
+                    console.print(f"[bold cyan]▶ Skipping Serper Google search and resuming directly from Gemini scoring...[/bold cyan]")
+                    from agents.discovery_agent import DiscoveryAgent
+                    discovery = DiscoveryAgent()
+                    leads = discovery.run(profile, dry_run=flags["dry_run"], raw_leads=raw_leads)
+                    run_summary["leads_discovered"] = len(leads)
+                    if not leads:
+                        console.print("[yellow]No leads qualified after scoring. Exiting.[/yellow]")
+                        write_run_log(run_summary)
+                        return
+                else:
+                    console.print(f"[bold red]Error: No cached leads found at {LEADS_PATH} or {RAW_LEADS_PATH} to resume.[/bold red]")
+                    console.print("[yellow]Run 'py -3.12 main.py' without --resume to perform a fresh search.[/yellow]")
+                    return
+
+            # Check if any leads need DMs drafted (e.g. Gemini key failed during Ghostwriter previously)
+            undrafted = [l for l in leads if not l.get("drafted_dm")]
+            if undrafted:
+                console.print(f"[yellow]▶ {len(undrafted)}/{len(leads)} leads are missing drafted DMs (e.g. Gemini key failed previously). Running Ghostwriter...[/yellow]")
+                from agents.ghostwriter_agent import GhostwriterAgent
+                writer = GhostwriterAgent()
+                leads = writer.run(leads, profile, dry_run=flags["dry_run"])
+                run_summary["notes_drafted"] = len([l for l in leads if l.get("drafted_dm")])
             else:
-                console.print(f"[bold red]Error: No cached leads file found at {LEADS_PATH} to resume. Run python main.py normally first.[/bold red]")
-                return
+                console.print(f"[green]✓ All {len(leads)} leads already have drafted DMs. Ready for Messenger.[/green]")
+                run_summary["notes_drafted"] = len(leads)
         else:
             from agents.discovery_agent import DiscoveryAgent
             discovery = DiscoveryAgent()

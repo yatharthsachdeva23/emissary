@@ -29,6 +29,7 @@ console = Console()
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 LEADS_PATH = DATA_DIR / "leads_today.json"
+RAW_LEADS_PATH = DATA_DIR / "raw_leads_today.json"
 SEEN_PATH = DATA_DIR / "seen_profiles.json"
 SERPER_URL = "https://google.serper.dev/search"
 
@@ -485,6 +486,8 @@ class DiscoveryAgent:
                 filtered.append(r)
 
         console.print(f"[green]✓ {len(filtered)} raw LinkedIn leads collected (all 3 layers)[/green]")
+        if filtered and not dry_run:
+            self.save_raw_leads(filtered)
         return filtered
 
     # ─── Score & Filter ───────────────────────────────────────────────────────
@@ -780,6 +783,32 @@ class DiscoveryAgent:
             
         console.print(f"[green]✓ Saved {len(leads)} leads (and historical backup: data/history/{history_path.name})[/green]")
 
+    def save_raw_leads(self, raw_leads: list) -> None:
+        """Cache raw search results immediately to disk before Gemini scoring."""
+        DATA_DIR.mkdir(exist_ok=True)
+        payload = {
+            "date": datetime.now().isoformat(),
+            "count": len(raw_leads),
+            "raw_leads": raw_leads
+        }
+        try:
+            with open(RAW_LEADS_PATH, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+            console.print(f"[dim]  Cached {len(raw_leads)} raw search results to data/{RAW_LEADS_PATH.name}[/dim]")
+        except Exception as e:
+            console.print(f"[yellow]Failed to cache raw leads: {e}[/yellow]")
+
+    def load_raw_leads(self) -> list:
+        """Load cached raw search results from data/raw_leads_today.json if available."""
+        if RAW_LEADS_PATH.exists():
+            try:
+                with open(RAW_LEADS_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return data.get("raw_leads", [])
+            except Exception as e:
+                console.print(f"[yellow]Failed to load cached raw leads: {e}[/yellow]")
+        return []
+
     def mark_contacted(self, profile_url: str) -> None:
         seen = self._load_seen_profiles()
         seen.add(profile_url)
@@ -787,9 +816,13 @@ class DiscoveryAgent:
 
     # ─── Main Entry Point ─────────────────────────────────────────────────────
 
-    def run(self, profile: dict, dry_run: bool = False) -> list:
+    def run(self, profile: dict, dry_run: bool = False, raw_leads: Optional[list] = None) -> list:
         console.print("\n[bold cyan]━━━ Phase 1: Discovery Engine (Hybrid) ━━━[/bold cyan]")
-        raw = self.gather_raw_leads(profile=profile, dry_run=dry_run)
+        if raw_leads:
+            console.print(f"[bold green]▶ Using {len(raw_leads)} cached raw search leads (skipping Serper Google search)...[/bold green]")
+            raw = raw_leads
+        else:
+            raw = self.gather_raw_leads(profile=profile, dry_run=dry_run)
         leads = self.score_and_filter(raw, profile)
         if leads:
             self.save_leads(leads)

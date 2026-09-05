@@ -198,9 +198,20 @@ class GhostwriterAgent:
         if not leads:
             return []
 
-        # Split leads into Big Tech vs. Startup/Medium companies
-        big_tech_leads = [l for l in leads if self.is_big_tech(l)]
-        startup_leads = [l for l in leads if not self.is_big_tech(l)]
+        # Check for leads that already have a drafted DM (from a previous partial run or cache)
+        already_drafted = [l for l in leads if l.get("drafted_dm")]
+        needs_drafting = [l for l in leads if not l.get("drafted_dm")]
+
+        if not needs_drafting:
+            console.print(f"[green]✓ All {len(leads)} leads already have drafted DMs. Skipping Gemini drafting.[/green]")
+            return leads
+
+        if already_drafted:
+            console.print(f"[cyan]ℹ {len(already_drafted)}/{len(leads)} leads already have drafted DMs. Drafting remaining {len(needs_drafting)} leads...[/cyan]")
+
+        # Split ONLY leads needing drafting into Big Tech vs. Startup/Medium companies
+        big_tech_leads = [l for l in needs_drafting if self.is_big_tech(l)]
+        startup_leads = [l for l in needs_drafting if not self.is_big_tech(l)]
 
         drafted = []
 
@@ -239,6 +250,14 @@ class GhostwriterAgent:
         enriched = []
         for lead in leads:
             name = lead.get("name") or ""
+            # If lead already had a drafted DM, keep it intact
+            if lead.get("drafted_dm"):
+                lead.setdefault("connection_note", "")
+                lead.setdefault("note_length", 0)
+                lead.setdefault("status", "queued")
+                enriched.append(lead)
+                continue
+
             # Fuzzy match: try exact first, then substring
             matched = dm_map.get(name)
             if not matched and name:
