@@ -724,21 +724,43 @@ class InboxAgent:
                 sheet = None
 
             try:
-                for lead in queue:
+                processing_queue = [(lead, False) for lead in queue]
+                retry_queue = []
+                lead_idx = 0
+
+                while lead_idx < len(processing_queue):
+                    lead, is_retry = processing_queue[lead_idx]
+                    lead_idx += 1
+
+                    if is_retry:
+                        console.print(f"\n[bold cyan]🔄 Retrying Closer DM for {lead.get('name', 'Unknown')}...[/bold cyan]")
+
                     success = self.send_dm(page, lead, ghost_run=ghost_run)
 
                     if success and not ghost_run:
                         summary["dm_sent"] += 1
-                        # Update sheet status to DM Sent
+                        # Update sheet status to DM Sent with URL priority
                         if sheet:
-                            sheet.update_status_by_name(lead["name"], "DM Sent")
+                            sheet.update_status_by_name(lead["name"], "DM Sent", url=lead.get("linkedin_url", ""))
                             console.print(f"  [green]  ✓ Sheet updated: DM Sent[/green]")
                     elif success and ghost_run:
                         summary["dm_sent"] += 1  # Ghost counts as sent for stats
                     else:
-                        summary["dm_failed"] += 1
+                        if not is_retry:
+                            console.print(f"  [yellow]  ⚠ DM failed for {lead.get('name', 'Unknown')}. Scheduling retry...[/yellow]")
+                            retry_queue.append(lead)
+                        else:
+                            console.print(f"  [red]  ⚠ DM failed for {lead.get('name', 'Unknown')} on retry attempt.[/red]")
+                            summary["dm_failed"] += 1
 
-                    self._human_sleep(4, 8)  # Strict jitter between each DM
+                    self._human_sleep(3, 6)  # Strict jitter between each DM
+
+                    # If initial queue finished, process any retries once
+                    if lead_idx == len(processing_queue) and len(retry_queue) > 0:
+                        console.print(f"\n[bold cyan]🔄 Processing Closer retry queue ({len(retry_queue)} leads)...[/bold cyan]")
+                        for r_lead in retry_queue:
+                            processing_queue.append((r_lead, True))
+                        retry_queue.clear()
             except KeyboardInterrupt:
                 console.print("\n[yellow]Closer interrupted by user. Stopping DM sending immediately...[/yellow]")
 
@@ -753,4 +775,16 @@ class InboxAgent:
             f"{summary['dm_failed']} failed, "
             f"from {summary['matched']} matched acceptances."
         )
+
+        # Retrieve and report any cell update errors
+        try:
+            from utils.sheets import SheetsClient
+            failed_updates = SheetsClient.get_and_clear_failed_updates()
+            if failed_updates:
+                console.print("\n[bold red]⚠️  Important Points:[/bold red]")
+                for item in failed_updates:
+                    console.print(f"  - [red]Google Sheet cell update FAILED[/red] for Row {item['row']}, Col {item['col']} (Value: '{item['value']}') at {item['timestamp']}")
+        except Exception:
+            pass
+
         return summary

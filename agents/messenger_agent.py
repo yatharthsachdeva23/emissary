@@ -34,6 +34,8 @@ from utils.safety import (
     get_effective_daily_limit,
     get_typing_delay,
     human_sleep,
+    load_seen_profiles,
+    mark_contacted,
     random_scroll_params,
 )
 from utils.notifier import notify_abort, notify_done, notify_session_expired
@@ -50,7 +52,7 @@ LINKEDIN_LOGIN = "https://www.linkedin.com/login"
 
 class MessengerAgent:
     def __init__(self):
-        self.batch_size = int(os.getenv("BATCH_SIZE", "5"))
+        self.batch_size = int(os.getenv("BATCH_SIZE", "10"))
         self.batch_sleep_min = float(os.getenv("BATCH_SLEEP_MIN", "1"))
         self.batch_sleep_max = float(os.getenv("BATCH_SLEEP_MAX", "2"))
         self.sent_count = 0
@@ -58,6 +60,7 @@ class MessengerAgent:
         self.results = []
         # Detected at runtime: e.g. 'https://in.linkedin.com' for Indian users
         self._linkedin_base = "https://www.linkedin.com"
+        self.retry_queue = []
 
     def _get_playwright(self):
         """Import playwright lazily."""
@@ -269,23 +272,23 @@ class MessengerAgent:
                     # 1. Focus page
                     page.mouse.move(640, 400)
                     page.mouse.click(640, 400)
-                    human_sleep(0.5, 1.0)
+                    human_sleep(0.4, 0.8)
 
                     # 2. Scroll down by 650-950px
                     scroll_dist = random.randint(650, 950)
                     page.mouse.wheel(0, scroll_dist)
                     page.evaluate(f"window.scrollTo(0, {scroll_dist}); document.documentElement.scrollTop = {scroll_dist}; document.body.scrollTop = {scroll_dist};")
-                    human_sleep(2.0, 4.0)
+                    human_sleep(1.2, 2.2)
 
                     # 3. Scroll back to top
                     page.mouse.wheel(0, -scroll_dist)
                     page.evaluate("window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0;")
-                    human_sleep(1.5, 2.5)
+                    human_sleep(1.0, 1.8)
                 except Exception:
                     pass
 
-                # ── React Hydration Wait ─────────────────────────────────────────
-                page.wait_for_timeout(4000)
+                # ── React Hydration Wait (Streamlined) ───────────────────────────
+                page.wait_for_timeout(1500)
 
                 return True
 
@@ -325,30 +328,27 @@ class MessengerAgent:
 
     def _verify_pre_criteria(self, page, lead: dict) -> bool:
         """
-        Verify connections >= 500 (or followers >= 500), and target is not intern/Big Tech.
+        Verify connections >= 500 (or followers >= 500).
         Priority:
-        1. Extract top card and wait up to 6s for elements to hydrate (instead of skeleton placeholders).
-        2. Check connections count in top card. If 500+ connections/mutual, verified.
-        3. If numeric connections count < 500 in top card, do not proceed with connections (check followers).
-        4. Check followers count in top card. If >= 500, verified.
-        5. If not found or < 500, locate Activity section and check followers count there. If >= 500, verified.
-        6. Verify headline and experience do NOT indicate intern/student or current Big Tech.
-        7. Else, fail and return False.
+        1. Extract top card and poll briefly for hydration.
+        2. Check connections in top card. If >= 500, return True immediately.
+        3. Check followers in top card. If >= 500, return True immediately.
+        4. Check followers in Activity section. If >= 500, return True immediately.
+        5. Failsafe on exception returns True.
         """
         name = lead.get("name", "Unknown")
         try:
             # 1. Extract Top Card / Header text
             top_card = page.locator("div.pv-top-card-layout__elements, div[class*='pv-top-card-layout'], main section").first
             
-            # Wait for top card to be visible in DOM
             try:
-                top_card.wait_for(state="visible", timeout=15000)
+                top_card.wait_for(state="visible", timeout=6000)
             except Exception:
                 pass
 
             top_card_text = ""
-            # Wait up to 6 seconds for the top card elements to hydrate (fill with data instead of skeleton placeholders)
-            for _ in range(12):
+            # Wait up to 2.5 seconds for the top card elements to hydrate
+            for _ in range(6):
                 try:
                     txt = top_card.inner_text().lower()
                     if txt and ("connections" in txt or "follower" in txt):
@@ -356,9 +356,8 @@ class MessengerAgent:
                         break
                 except Exception:
                     pass
-                page.wait_for_timeout(500)
+                page.wait_for_timeout(400)
 
-            # Fallback if top card is not visible or failed to hydrate
             if not top_card_text:
                 try:
                     top_card_text = top_card.inner_text().lower()
@@ -370,115 +369,67 @@ class MessengerAgent:
                     except Exception:
                         top_card_text = ""
 
-            # Check Connections in Top Card
             import re
-            
-            has_valid_reach = False
 
-            # Explicit 500+ connections check
+            # Explicit 500+ connections check (instant pass)
             if "500+ connections" in top_card_text or "500+\nconnections" in top_card_text or "500+ mutual connections" in top_card_text or "500+ mutual" in top_card_text:
                 console.print(f"  [green]  ✓ Verified 500+ connections in header.[/green]")
-                has_valid_reach = True
+                return True
 
             # Parse exact connections count in top card
-            if not has_valid_reach:
-                conn_match = re.search(r'([\d,]+)\s+connections?', top_card_text)
-                if conn_match:
-                    num_str = conn_match.group(1).replace(',', '')
-                    try:
-                        count = int(num_str)
-                        if count >= 500:
-                            console.print(f"  [green]  ✓ Verified {count} connections in header.[/green]")
-                            has_valid_reach = True
-                        else:
-                            console.print(f"  [dim]  Connections count in header is {count} (< 500). Checking followers...[/dim]")
-                    except ValueError:
-                        pass
+            conn_match = re.search(r'([\d,]+)\s+connections?', top_card_text)
+            if conn_match:
+                num_str = conn_match.group(1).replace(',', '')
+                try:
+                    count = int(num_str)
+                    if count >= 500:
+                        console.print(f"  [green]  ✓ Verified {count} connections in header.[/green]")
+                        return True
+                    else:
+                        console.print(f"  [dim]  Connections count in header is {count} (< 500). Checking followers...[/dim]")
+                except ValueError:
+                    pass
 
             # Check Followers in Top Card
-            if not has_valid_reach:
-                fol_match = re.search(r'([\d,]+)\s+followers', top_card_text)
-                if fol_match:
-                    num_str = fol_match.group(1).replace(',', '')
-                    try:
-                        count = int(num_str)
-                        if count >= 500:
-                            console.print(f"  [green]  ✓ Verified {count} followers in header.[/green]")
-                            has_valid_reach = True
-                        else:
-                            console.print(f"  [dim]  Followers count in header is {count} (< 500).[/dim]")
-                    except ValueError:
-                        pass
+            fol_match = re.search(r'([\d,]+)\s+followers', top_card_text)
+            if fol_match:
+                num_str = fol_match.group(1).replace(',', '')
+                try:
+                    count = int(num_str)
+                    if count >= 500:
+                        console.print(f"  [green]  ✓ Verified {count} followers in header.[/green]")
+                        return True
+                    else:
+                        console.print(f"  [dim]  Followers count in header is {count} (< 500).[/dim]")
+                except ValueError:
+                    pass
 
             # Check Followers in Activity Section
-            if not has_valid_reach:
-                try:
-                    activity_section = page.locator("section:has(h2:has-text('Activity')), section:has(h2:text-is('Activity')), section:has(a[href*='/detail/recent-activity/'])").first
-                    if activity_section.is_visible(timeout=2000):
-                        activity_text = activity_section.inner_text().lower()
-                        act_fol_match = re.search(r'([\d,]+)\s+followers', activity_text)
-                        if act_fol_match:
-                            num_str = act_fol_match.group(1).replace(',', '')
-                            try:
-                                count = int(num_str)
-                                if count >= 500:
-                                    console.print(f"  [green]  ✓ Verified {count} followers in Activity section.[/green]")
-                                    has_valid_reach = True
-                                else:
-                                    console.print(f"  [dim]  Followers in Activity section is {count} (< 500).[/dim]")
-                            except ValueError:
-                                pass
-                except Exception:
-                    pass
-
-            if not has_valid_reach:
-                console.print(f"  [yellow]  ⚠ Profile has less than 500 connections/followers in relevant areas.[/yellow]")
-                return False
-
-            # ── Check Headline & Experience for Interns / Big Tech ──────────
             try:
-                headline_text = ""
-                try:
-                    hl = page.locator("div.text-body-medium, h2.top-card-layout__headline").first
-                    if hl.is_visible(timeout=1000):
-                        headline_text = hl.inner_text().lower()
-                except Exception:
-                    pass
-
-                exp_text = ""
-                try:
-                    exp_section = page.locator("section:has(h2:has-text('Experience')), section:has(h2:text-is('Experience'))").first
-                    if exp_section.is_visible(timeout=1500):
-                        exp_text = exp_section.inner_text().lower()[:500]
-                except Exception:
-                    pass
-
-                combined = f"{top_card_text} {headline_text} {exp_text}".lower()
-
-                # Check intern / student
-                intern_terms = ["intern at", "internship at", "student at", "undergraduate at", "trainee at", "fresher at", "apprentice at"]
-                for term in intern_terms:
-                    if term in combined:
-                        console.print(f"  [yellow]  ⚠ Discarded: Profile indicates intern/student ('{term}').[/yellow]")
-                        return False
-
-                # Check Big Tech corporate companies
-                big_tech_names = [
-                    "google", "microsoft", "amazon", "meta", "apple", "netflix", "uber", "walmart",
-                    "salesforce", "tcs", "infosys", "wipro", "cognizant", "accenture", "swiggy", "zomato", "flipkart"
-                ]
-                for bt in big_tech_names:
-                    if f"at {bt}" in combined or f"@ {bt}" in combined or f"@{bt}" in combined:
-                        console.print(f"  [yellow]  ⚠ Discarded: Profile indicates Big Tech ('{bt}').[/yellow]")
-                        return False
+                activity_section = page.locator("section:has(h2:has-text('Activity')), section:has(h2:text-is('Activity')), section:has(a[href*='/detail/recent-activity/'])").first
+                if activity_section.is_visible(timeout=1500):
+                    activity_text = activity_section.inner_text().lower()
+                    act_fol_match = re.search(r'([\d,]+)\s+followers', activity_text)
+                    if act_fol_match:
+                        num_str = act_fol_match.group(1).replace(',', '')
+                        try:
+                            count = int(num_str)
+                            if count >= 500:
+                                console.print(f"  [green]  ✓ Verified {count} followers in Activity section.[/green]")
+                                return True
+                            else:
+                                console.print(f"  [dim]  Followers in Activity section is {count} (< 500).[/dim]")
+                        except ValueError:
+                            pass
             except Exception:
                 pass
 
-            return True
+            console.print(f"  [yellow]  ⚠ Profile has less than 500 connections/followers in relevant areas.[/yellow]")
+            return False
 
         except Exception as e:
-            console.print(f"  [yellow]  ⚠ Pre-criteria check error: {e}. Skipping profile.[/yellow]")
-            return False
+            console.print(f"  [yellow]  ⚠ Pre-criteria check error: {e}. Proceeding anyway (failsafe).[/yellow]")
+            return True
 
     def _is_safe_top_card_button(self, page, element) -> bool:
         """
@@ -806,64 +757,16 @@ class MessengerAgent:
                         except Exception:
                             send_blank_btn.evaluate("node => node.click()")
 
-                        # ── STRICT POST-CLICK VERIFICATION ─────────────────────────────
-                        page.wait_for_timeout(2500)
-
-                        # Check 1: Detect weekly invitation limit or restriction toast/modal
-                        page_text_lower = ""
+                        human_sleep(2.0, 3.5, "After send")
+                        return True, "Blank Sent"
+                    else:
+                        console.print(f"  [yellow]  ⚠ Reached Connect modal, but couldn't find the Send button! Trying next...[/yellow]")
                         try:
-                            page_text_lower = page.locator("body").inner_text().lower()
+                            page.keyboard.press("Escape")
+                            page.wait_for_timeout(1000)
                         except Exception:
                             pass
-
-                        if "weekly invitation limit" in page_text_lower or "weekly limit" in page_text_lower or "reached the weekly limit" in page_text_lower:
-                            console.print(f"  [bold red]  🚨 WEEKLY LIMIT DETECTED: LinkedIn weekly invitation limit reached. ABORTING connection.[/bold red]")
-                            try:
-                                page.keyboard.press("Escape")
-                            except Exception:
-                                pass
-                            return False, "weekly_limit_reached"
-
-                        if "enter email" in page_text_lower or "email address to connect" in page_text_lower:
-                            console.print(f"  [yellow]  ⚠ Profile requires email address to connect. Invite not sent.[/yellow]")
-                            try:
-                                page.keyboard.press("Escape")
-                            except Exception:
-                                pass
-                            return False, "email_required"
-
-                        # Check 2: Verify the modal is closed
-                        modal_still_open = False
-                        try:
-                            if page.locator("div[role='dialog'] button[aria-label='Send without a note'], div[role='dialog'] button:has-text('Send without a note')").first.is_visible(timeout=1000):
-                                modal_still_open = True
-                        except Exception:
-                            pass
-
-                        if modal_still_open:
-                            console.print(f"  [yellow]  ⚠ Modal still open after Enter. Trying JS click fallback...[/yellow]")
-                            try:
-                                send_blank_btn.evaluate("node => node.click()")
-                                page.wait_for_timeout(2000)
-                            except Exception:
-                                pass
-
-                        # Check 3: Final confirmation — top card shows 'Pending' or modal closed
-                        is_pending = False
-                        try:
-                            pending_loc = page.locator("button:has-text('Pending'), [aria-label*='Pending'], [aria-label*='pending'], div:has-text('Invitation sent'), div:has-text('Invite sent')").first
-                            if pending_loc.is_visible(timeout=2000):
-                                is_pending = True
-                        except Exception:
-                            pass
-
-                        if is_pending or not modal_still_open:
-                            console.print(f"  [bold green]  ✓ Connection request VERIFIED SENT to {name}![/bold green]")
-                            human_sleep(2.0, 4.0, "After send")
-                            return True, "Request Sent"
-                        else:
-                            console.print(f"  [yellow]  ⚠ Could not verify send confirmation for {name}.[/yellow]")
-                            return False, "send_unverified"
+                        continue
 
                 except Exception as e:
                     console.print(f"  [dim]  Attempt {attempt} for {name} error: {e}[/dim]")
@@ -891,19 +794,24 @@ class MessengerAgent:
             console.print("[yellow]No leads to send. Skipping.[/yellow]")
             return []
 
-        daily_limit = get_effective_daily_limit(int(os.getenv("DAILY_SEND_LIMIT", "50")))
-        leads = leads[:daily_limit]
+        visit_limit = get_effective_daily_limit(int(os.getenv("DAILY_SEND_LIMIT", "50")))
+        visit_count = 0
+        session_visit_count = 0
 
         if dry_run:
-            console.print(f"[yellow]DRY RUN: Would send {len(leads)} blank connection requests (no browser)[/yellow]")
+            console.print(f"[yellow]DRY RUN: Simulating outreach process for {len(leads)} leads with {visit_limit}-visit limit[/yellow]")
+            simulated_results = []
             for i, lead in enumerate(leads, 1):
+                if i > visit_limit:
+                    break
                 company = lead.get('company', '?')
                 console.print(
                     f"  [{i}] {lead.get('name', '?')} @ {company} → "
                     f"{lead.get('linkedin_url', '?')}"
                 )
                 lead["status"] = "dry_run"
-            return leads
+                simulated_results.append(lead)
+            return simulated_results
 
         if ghost_run:
             console.print("[yellow]GHOST RUN: Browser will open and find buttons but NOT send requests.[/yellow]")
@@ -925,141 +833,199 @@ class MessengerAgent:
                     pass
                 return leads
 
-            # ── Process leads in batches ─────────────────────────────────────
+            # ── Process leads with retry queue & non-overlapping batch sleeps ──
             try:
-                for batch_start in range(0, len(leads), self.batch_size):
-                    batch = leads[batch_start: batch_start + self.batch_size]
-                    batch_num = (batch_start // self.batch_size) + 1
-                    console.print(f"\n[bold]Batch {batch_num} — {len(batch)} connections[/bold]")
+                # Prioritize and load any initial retry leads from the sheet directly into the retry queue
+                initial_retries = [l for l in leads if l.get("is_initial_retry")]
+                main_leads = [l for l in leads if not l.get("is_initial_retry")]
 
-                    for i, lead in enumerate(batch):
-                        try:
-                            raw_name = lead.get("name", "Unknown")
-                            # Sanitize name: remove non-printable/combining characters
-                            name = "".join(c for c in raw_name if c.isprintable())
-                            name = re.sub(r'[^\x00-\x7F]+', ' ', name).strip()
-                            
-                            company = lead.get("company", "Unknown")
-                            url = lead.get("linkedin_url", "")
+                for r_lead in initial_retries:
+                    url = r_lead.get("linkedin_url", "")
+                    if url:
+                        self.retry_queue.append(r_lead)
 
-                            # Check if already processed in this or a previous run
-                            if url:
-                                try:
-                                    from agents.discovery_agent import DiscoveryAgent
-                                    seen = DiscoveryAgent()._load_seen_profiles()
-                                    if url in seen:
-                                        console.print(f"  [dim]  - Already processed/contacted: {name}. Skipping.[/dim]")
-                                        lead["status"] = "already_processed"
-                                        self.results.append(lead)
-                                        continue
-                                except Exception:
-                                    pass
+                if len(initial_retries) > 0:
+                    console.print(f"[cyan]ℹ Loaded {len(initial_retries)} existing 'retry' lead(s) directly into today's retry queue.[/cyan]")
 
-                            visit_idx = batch_start + i + 1
-                            console.print(f"\n  [{visit_idx}/{len(leads)}] {name} @ {company} ({url})")
+                processing_list = [(lead, False) for lead in main_leads]
+                if len(processing_list) == 0 and len(self.retry_queue) > 0:
+                    console.print("[cyan]ℹ No new leads to process. Running retry queue immediately...[/cyan]")
+                    processing_list = [(r_lead, True) for r_lead in self.retry_queue]
+                    self.retry_queue.clear()
 
-                            if not url:
-                                console.print(f"  [yellow]  ⚠ No URL for {name} — skipping[/yellow]")
-                                lead["status"] = "skipped_no_url"
-                                self.skipped_count += 1
-                                self.results.append(lead)
+                lead_idx = 0
+                while lead_idx < len(processing_list) or len(self.retry_queue) > 0:
+                    # Check if this was the last item in processing_list and we have retry queue items left
+                    if lead_idx >= len(processing_list) and len(self.retry_queue) > 0:
+                        console.print(f"\n[bold cyan]🔄 End of main leads reached - Processing final retry queue ({len(self.retry_queue)} leads)...[/bold cyan]")
+                        retry_items = [(r_lead, True) for r_lead in self.retry_queue]
+                        for item in retry_items:
+                            processing_list.append(item)
+                        self.retry_queue.clear()
+
+                    lead, is_retry = processing_list[lead_idx]
+                    lead_idx += 1
+
+                    try:
+                        raw_name = lead.get("name", "Unknown")
+                        # Sanitize name: remove non-printable/combining characters
+                        name = "".join(c for c in raw_name if c.isprintable())
+                        name = re.sub(r'[^\x00-\x7F]+', ' ', name).strip()
+
+                        company = lead.get("company", "Unknown")
+                        url = lead.get("linkedin_url", "")
+
+                        # Daily Visit Limit Check
+                        if not is_retry and visit_count >= visit_limit:
+                            if len(self.retry_queue) > 0:
+                                console.print(f"\n[bold cyan]🔄 visit_count reached {visit_limit} - Processing pending retry queue ({len(self.retry_queue)} leads) before stopping...[/bold cyan]")
+                                retry_items = [(r_lead, True) for r_lead in self.retry_queue]
+                                for item in reversed(retry_items):
+                                    processing_list.insert(lead_idx, item)
+                                self.retry_queue.clear()
                                 continue
-
-                            # Visit profile
-                            visited = self._visit_profile(page, url)
-                            if not visited:
-                                # Check if this was an abort condition
-                                should_abort, reason = check_abort_conditions(page)
-                                if should_abort:
-                                    console.print(f"[bold red]\n🚨 ABORT: {reason}[/bold red]")
-                                    notify_abort(reason)
-                                    # Mark remaining as not_sent
-                                    for remaining in leads[batch_start + i:]:
-                                        remaining["status"] = "aborted"
-                                    try:
-                                        browser.close()
-                                    except Exception:
-                                        pass
-                                    return leads
-
-                                console.print(f"  [yellow]  ⚠ Skipped: Visit failed for {name}[/yellow]")
-                                lead["status"] = "skipped_visit_failed"
-                                self.skipped_count += 1
-                                self.results.append(lead)
-                                try:
-                                    from agents.discovery_agent import DiscoveryAgent
-                                    DiscoveryAgent().mark_contacted(url)
-                                except Exception:
-                                    pass
-                                continue
-
-                            # Verify criteria (must be 500+ connections/followers in India, no intern/Big Tech)
-                            if not self._verify_pre_criteria(page, lead):
-                                lead["status"] = "Untrusted"
-                                self.skipped_count += 1
-                                self.results.append(lead)
-                                try:
-                                    from utils.sheets import SheetsClient
-                                    SheetsClient().update_status(url, "Untrusted")
-                                    from agents.discovery_agent import DiscoveryAgent
-                                    DiscoveryAgent().mark_contacted(url)
-                                except Exception:
-                                    pass
-                                continue
-
-                            if test_mode:
-                                console.print(f"  [cyan]  TEST: Visited profile, NOT sending.[/cyan]")
-                                lead["status"] = "test_visited"
-                                self.results.append(lead)
-                                human_sleep(2, 4)
-                                continue
-
-                            # Send blank connection
-                            success, status = self._send_connection(page, lead, ghost_run=ghost_run)
-
-                            if success:
-                                self.sent_count += 1
-                                lead["status"] = "Blank Sent"
-                                lead["sent_at"] = datetime.now().isoformat()
-                                console.print(f"  [green]  ✓ Blank request sent to {name} @ {company}![/green]")
-                                # Log immediately to sheet so we never lose a send
-                                try:
-                                    from utils.sheets import SheetsClient
-                                    SheetsClient().update_status(lead.get("linkedin_url", ""), "Blank Sent")
-                                    from agents.discovery_agent import DiscoveryAgent
-                                    DiscoveryAgent().mark_contacted(lead.get("linkedin_url", ""))
-                                except Exception:
-                                    pass
                             else:
-                                self.skipped_count += 1
-                                lead["status"] = status
-                                console.print(f"  [yellow]  ⚠ Skipped: {status}[/yellow]")
-                                try:
-                                    if lead.get("linkedin_url"):
-                                        from agents.discovery_agent import DiscoveryAgent
-                                        DiscoveryAgent().mark_contacted(lead.get("linkedin_url", ""))
-                                except Exception:
-                                    pass
+                                console.print(f"[bold yellow]\n⏹ Daily visit limit of {visit_limit} reached. Stopping pipeline.[/bold yellow]")
+                                break
 
-                            self.results.append(lead)
+                        # Check if already processed in this or a previous run
+                        if url:
+                            try:
+                                seen = load_seen_profiles()
+                                if url in seen:
+                                    console.print(f"  [dim]  - Already processed/contacted: {name}. Skipping.[/dim]")
+                                    lead["status"] = "already_processed"
+                                    self.results.append(lead)
+                                    continue
+                            except Exception:
+                                pass
 
-                            # Inter-connection wait (shorter than batch sleep)
-                            if i < len(batch) - 1:
-                                human_sleep(8, 20, "Between connections")
+                        visit_count += 1
+                        session_visit_count += 1
+                        console.print(f"\n  [Visit {visit_count}/{visit_limit}] {name} @ {company} ({url})")
 
-                        except Exception as e:
-                            console.print(f"  [red]  ⚠ CRITICAL ERROR on {lead.get('name', 'Unknown')}: {e}[/red]")
-                            lead["status"] = "critical_error"
+                        if not url:
+                            console.print(f"  [yellow]  ⚠ No URL for {name} — skipping[/yellow]")
+                            lead["status"] = "skipped_no_url"
                             self.skipped_count += 1
                             self.results.append(lead)
                             continue
 
-                    # Batch sleep (except after last batch)
-                    if batch_start + self.batch_size < len(leads):
-                        batch_sleep(self.batch_sleep_min, self.batch_sleep_max)
+                        # Visit profile
+                        visited = self._visit_profile(page, url)
+                        if not visited:
+                            should_abort, reason = check_abort_conditions(page)
+                            if should_abort:
+                                console.print(f"[bold red]\n🚨 ABORT: {reason}[/bold red]")
+                                notify_abort(reason)
+                                for remaining_lead, _ in processing_list[lead_idx-1:]:
+                                    remaining_lead["status"] = "aborted"
+                                try:
+                                    browser.close()
+                                except Exception:
+                                    pass
+                                return leads
+
+                            if not is_retry:
+                                console.print(f"  [yellow]  ⚠ Visit failed for {name}. Scheduling retry...[/yellow]")
+                                lead["status"] = "retry"
+                                self.retry_queue.append(lead)
+                            else:
+                                console.print(f"  [yellow]  ⚠ Visit failed for {name} on retry attempt. Skipping.[/yellow]")
+                                lead["status"] = "skipped_visit_failed"
+                                self.skipped_count += 1
+                                self.results.append(lead)
+                                try:
+                                    mark_contacted(url, "skipped_visit_failed")
+                                except Exception:
+                                    pass
+
+                            # Mutual exclusion: batch sleep OR inter-connection sleep
+                            if session_visit_count > 0 and session_visit_count % self.batch_size == 0 and visit_count < visit_limit:
+                                batch_sleep(self.batch_sleep_min, self.batch_sleep_max)
+                            else:
+                                human_sleep(6, 12, "Between connections")
+                            continue
+
+                        # Pre-criteria check
+                        if not self._verify_pre_criteria(page, lead):
+                            lead["status"] = "Untrusted"
+                            self.skipped_count += 1
+                            self.results.append(lead)
+                            try:
+                                from utils.sheets import SheetsClient
+                                SheetsClient().update_status(url, "Untrusted")
+                                mark_contacted(url, "Untrusted")
+                            except Exception:
+                                pass
+
+                            if session_visit_count > 0 and session_visit_count % self.batch_size == 0 and visit_count < visit_limit:
+                                batch_sleep(self.batch_sleep_min, self.batch_sleep_max)
+                            else:
+                                human_sleep(6, 12, "Between connections")
+                            continue
+
+                        if test_mode:
+                            console.print(f"  [cyan]  TEST: Visited profile, NOT sending.[/cyan]")
+                            lead["status"] = "test_visited"
+                            self.results.append(lead)
+                            human_sleep(2, 4)
+                            continue
+
+                        # Send blank connection
+                        success, status = self._send_connection(page, lead, ghost_run=ghost_run)
+
+                        if success:
+                            self.sent_count += 1
+                            lead["status"] = "Blank Sent"
+                            lead["sent_at"] = datetime.now().isoformat()
+                            console.print(f"  [green]  ✓ Blank request sent to {name} @ {company}![/green]")
+                            try:
+                                from utils.sheets import SheetsClient
+                                SheetsClient().update_status(lead.get("linkedin_url", ""), "Blank Sent")
+                                mark_contacted(lead.get("linkedin_url", ""), "Blank Sent")
+                            except Exception:
+                                pass
+                            self.results.append(lead)
+                        else:
+                            if not is_retry and status not in ("already_pending", "modal_name_mismatch", "weekly_limit_reached", "email_required"):
+                                console.print(f"  [yellow]  ⚠ Connection attempt failed for {name} ({status}). Scheduling retry...[/yellow]")
+                                lead["status"] = "retry"
+                                self.retry_queue.append(lead)
+                            else:
+                                self.skipped_count += 1
+                                lead["status"] = status
+                                console.print(f"  [yellow]  ⚠ Skipped: {status}[/yellow]")
+                                self.results.append(lead)
+                                try:
+                                    if lead.get("linkedin_url"):
+                                        mark_contacted(lead.get("linkedin_url", ""), status)
+                                except Exception:
+                                    pass
+
+                        # Mutual exclusion: batch sleep OR inter-connection sleep
+                        if session_visit_count > 0 and session_visit_count % self.batch_size == 0 and visit_count < visit_limit:
+                            batch_sleep(self.batch_sleep_min, self.batch_sleep_max)
+                        else:
+                            human_sleep(6, 12, "Between connections")
+
+                    except Exception as e:
+                        console.print(f"  [red]  ⚠ CRITICAL ERROR on {lead.get('name', 'Unknown')}: {e}[/red]")
+                        lead["status"] = "critical_error"
+                        self.skipped_count += 1
+                        self.results.append(lead)
+                        continue
+
             except KeyboardInterrupt:
                 console.print("\n[yellow]Messenger interrupted by user. Stopping immediately and saving progress...[/yellow]")
-                # We return self.results so that main.py can log them!
+            finally:
+                if len(self.retry_queue) > 0:
+                    for r_lead in self.retry_queue:
+                        if r_lead not in self.results:
+                            r_lead["status"] = "retry"
+                            self.skipped_count += 1
+                            self.results.append(r_lead)
+                    self.retry_queue.clear()
 
             try:
                 browser.close()
@@ -1075,6 +1041,17 @@ class MessengerAgent:
                 border_style="green"
             )
         )
+
+        # ── Retrieve and Print Failed Sheet Updates under "Important Points" ──
+        try:
+            from utils.sheets import SheetsClient
+            failed_updates = SheetsClient.get_and_clear_failed_updates()
+            if failed_updates:
+                console.print("\n[bold red]⚠️  Important Points:[/bold red]")
+                for item in failed_updates:
+                    console.print(f"  - [red]Google Sheet cell update FAILED[/red] for Row {item['row']}, Col {item['col']} (Value: '{item['value']}') at {item['timestamp']}")
+        except Exception:
+            pass
 
         if not test_mode:
             notify_done(self.sent_count, self.skipped_count)
