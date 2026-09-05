@@ -47,10 +47,10 @@ ROLE_SETS = [
 ]
 
 STARTUP_THEMES = [
-    '"Startup" OR "Early Stage"',
-    '"Seed" OR "Series A"',
+    '"Funded Startup" OR "Series A"',
+    '"Seed Funded" OR "Venture Backed"',
     '"Series B" OR "Scaleup"',
-    '"Bootstrapped" OR "Fast Growing"',
+    '"Profitable" OR "Bootstrapped SaaS"',
     '"B2B SaaS" OR "SaaS"',
     '"Fintech" OR "Payments"',
     '"D2C" OR "E-Commerce"',
@@ -61,7 +61,7 @@ STARTUP_THEMES = [
     '"Logistics Tech" OR "Supply Chain"',
     '"PropTech" OR "Real Estate Tech"',
     '"Product Strategy" OR "PLG"',
-    '"Building in Public" OR "Venture Backed"',
+    '"Growth Stage" OR "Fast Growing"',
     '"User Research" OR "Product Analytics"',
 ]
 
@@ -109,7 +109,7 @@ def generate_random_static_queries(count_profiles: int = 10, count_posts: int = 
         if key in used_combos:
             continue
         used_combos.add(key)
-        q = f'site:linkedin.com/in {r} {t} {l} -intern -student'
+        q = f'site:linkedin.com/in {r} {t} {l} -intern -student -stealth'
         queries.append((q, None))
 
     # 2. Randomized Post Queries (Fresh hiring signals from past 7 days)
@@ -119,14 +119,14 @@ def generate_random_static_queries(count_profiles: int = 10, count_posts: int = 
         post_attempts += 1
         sig = random.choice(POST_HIRING_SIGNALS)
         role = random.choice(['"Product Manager" OR "APM"', '"Head of Product" OR "Product Lead"', '"Growth PM" OR "Founding PM"'])
-        theme = random.choice(['"Startup" OR "SaaS"', '"Fintech" OR "D2C"', '"AI" OR "Tech"', '"Early Stage"'])
+        theme = random.choice(['"Startup" OR "SaaS"', '"Fintech" OR "D2C"', '"AI" OR "Tech"', '"Series A" OR "Scaleup"'])
         loc = random.choice(['"India"', '"Bangalore" OR "Delhi NCR"', '"Gurgaon" OR "Noida"', '"Mumbai" OR "Remote"'])
         
         post_key = f"{sig}_{role}_{theme}_{loc}"
         if post_key in used_post_combos:
             continue
         used_post_combos.add(post_key)
-        q_post = f'site:linkedin.com/posts "{sig}" {role} {theme} {loc} -intern -student'
+        q_post = f'site:linkedin.com/posts "{sig}" {role} {theme} {loc} -intern -student -stealth'
         queries.append((q_post, "qdr:w"))
 
     return queries
@@ -134,8 +134,8 @@ def generate_random_static_queries(count_profiles: int = 10, count_posts: int = 
 
 # ─── Layer 2: LinkedIn Jobs → Leaders (Tightened to 2-3 queries max) ─────────
 JOB_SOURCING_QUERIES = [
-    'site:linkedin.com/jobs/view ("Product Manager" OR "APM") ("Startup" OR "SaaS" OR "Fintech") "India"',
-    'site:linkedin.com/jobs/view ("Growth Manager" OR "Head of Product") ("Startup" OR "Early Stage") "India"',
+    'site:linkedin.com/jobs/view ("Product Manager" OR "APM" OR "Associate Product Manager") ("Series A" OR "Series B" OR "Funded" OR "SaaS") "India"',
+    'site:linkedin.com/jobs/view ("Product Lead" OR "Head of Product" OR "Growth Manager") ("Startup" OR "Scaleup") "India"',
 ]
 
 COMPANY_EXTRACTION_PROMPT = """You are a parsing assistant. Extract unique company names from the following LinkedIn job posting titles and snippets.
@@ -156,17 +156,18 @@ Return ONLY a JSON array of strings:
 ```"""
 
 # ─── Layer 3: Dynamic AI-generated dorks (12 queries) ─────────────────────────
-DYNAMIC_DORK_PROMPT = """You are a lead-generation assistant for an internship outreach tool targeting Product Management, Brand, and Growth leadership roles at Startups.
+DYNAMIC_DORK_PROMPT = """You are a lead-generation assistant for an internship outreach tool targeting Product Management, AI Product, and Growth leadership roles at established startups.
 
 Candidate Profile:
 {profile_summary}
 
-Generate exactly 12 unique Google search dorks to find high-value LinkedIn profiles of executive decision-makers at STARTUPS and HIGH-GROWTH COMPANIES in India who could hire this candidate for a Product Management / APM / AI PM / Growth internship.
+Generate exactly 12 unique Google search dorks to find high-value LinkedIn profiles of executive decision-makers at ESTABLISHED STARTUPS and GROWTH COMPANIES (operating for 2-3+ years, 10-100 team members, Seed/Series A/B funded or profitable bootstrapped) in India who could hire this candidate for an immediate 2-month Product Management / APM / AI PM / Growth internship.
 
 Rules:
 - Mix profile queries (site:linkedin.com/in) and post queries (site:linkedin.com/posts).
-- Target key decision-maker roles: "Founder", "Co-Founder", "CEO", "Head of Product", "VP Product", "Product Manager", "APM", "Growth Product Manager", "Product Lead".
-- Target Startup & domain keywords: "Startup", "Seed", "Series A", "Bootstrapped", "B2B SaaS", "Fintech", "D2C", "AI Product", "Consumer Tech", "Early Stage".
+- Target key decision-maker roles: "Head of Product", "VP Product", "CPO", "Director of Product", "Product Manager", "Lead Product Manager", "Group Product Manager", "APM", "Founder", "Co-Founder", "CEO", "Head of Growth", "VP Growth".
+- Target Startup & maturity keywords: "Funded", "Seed", "Series A", "Series B", "Scaleup", "Growth Stage", "Bootstrapped SaaS", "B2B SaaS", "Fintech", "Consumer Tech", "D2C", "AI Product".
+- STRICTLY AVOID solo-founder/stealth terms: append -stealth -"co-founder wanted" to prevent 1-2 person garage projects.
 - Target Indian locations: "India", "Bangalore", "Bengaluru", "Delhi NCR", "Gurgaon", "Noida", "Mumbai", "Pune", "Hyderabad".
 - Always exclude interns and students using -intern -student.
 - CRITICAL SYNTAX RULE: NEVER add company exclusions like -google, -microsoft, or -linkedin to the query string! Doing so breaks Google search. Focus on positive keywords like "Startup" OR "SaaS" OR "Fintech".
@@ -183,19 +184,26 @@ SCORING_PROMPT = """You are a lead-scoring assistant for a Product Management in
 Student Profile:
 {profile_summary}
 
-Score each lead from 0.0 to 1.0 based on how valuable they are as a potential manager/founder for a Product Management (PM / APM / AI PM / Growth) internship.
+Score each lead from 0.0 to 1.0 based on how valuable they are as a potential manager/founder for an immediate 2-month Product Management (PM / APM / AI PM / Growth) internship.
 
-TARGET AUDIENCE & PRIORITIES (High Scores: 0.85 - 1.0):
-- Founders, Co-Founders, CEOs, COOs, VPs of Product, VPs of Growth, VPs of Marketing, Heads of Product, Heads of Brand, Heads of Growth, Product Managers, APMs, Product Leads, Brand Managers, Growth Managers.
-- STARTUPS & GROWTH COMPANIES ONLY (Seed, Series A/B, Bootstrapped, D2C, B2B SaaS, Fintech, E-Commerce, Consumer Tech, EdTech, GovTech, Retail) located in India (Delhi NCR, Gurgaon, Noida, Bangalore, Mumbai, Hyderabad, Pune, Remote).
-- Profiles showing active hiring or building in product, brand, or business growth.
+TARGET AUDIENCE & PRIORITIES (High Scores: 0.85 - 1.0) — THE "SWEET SPOT":
+- ESTABLISHED STARTUPS & SCALEUPS: Companies that have been operating actively for at least 2-3+ years, with a real functioning team of ~10 to 100 employees (distinct engineering, product, and sales/business functions).
+- TRACTION & FUNDING: Companies with proven Product-Market Fit (PMF), live products, paying customers, Seed/Series A/B funding, or profitable/sustainable bootstrapping.
+- TARGET ROLES: Founders, Co-Founders, CEOs, COOs, VPs of Product, Heads of Product, CPOs, Directors of Product, Lead PMs, Group PMs, APMs, Heads of Growth, VPs of Growth.
+- IDEAL FIT: Companies large enough to have budget, mentorship, and work for a dedicated PM intern, yet agile enough that the intern can work cross-functionally across Product, Tech/AI, Sales, and Marketing.
 
 CRITICAL DISCARD RULES (score = 0.0):
-1. BIG TECH & GIANT CORPORATES (DISCARD IMMEDIATELY): Discard anyone working at Google, Microsoft, Amazon, Meta, Apple, Netflix, Uber, Walmart, Salesforce, Swiggy, Zomato, Flipkart, Adobe, LinkedIn, Facebook, Atlassian, TCS, Infosys, Wipro, Cognizant, Accenture, Sabre, Cvent, Coupa.
-2. MISSING / UNKNOWN COMPANY OR ROLE (DISCARD IMMEDIATELY): If the person's company or role is unknown, missing, null, or empty string, DISCARD IT (score = 0.0). EVERY output lead MUST have an explicit, named company and title extracted from the title/snippet.
-3. INTERNS & STUDENTS (DISCARD IMMEDIATELY): Discard anyone whose role or title contains: intern, internship, student, trainee, fresher, apprentice, undergraduate.
-4. PURE TECH / NON-PM ROLES: Discard pure software engineers, SDEs, QA testers, or devops engineers who have no product, brand, growth, or executive management responsibilities.
-5. NON-INDIA: Discard anyone located outside of India.
+1. SOLO FOUNDERS, MICRO-TEAMS & STEALTH (< 5-10 people) (DISCARD IMMEDIATELY):
+   - Discard anyone working in 'Stealth', 'in stealth', 'stealth mode', 'stealth startup', 'pre-seed idea stage', 'building something new'.
+   - Discard solo founders who are doing everything alone and seeking a 'co-founder' or equity-only partner instead of hiring an intern.
+   - Discard 1-2 person garage ventures, halted/restarted side projects, or dormant ideas.
+   - Discard 1-2 person freelance agencies, dev shops, or solo consultancies.
+2. BIG TECH & GIANT CORPORATES (DISCARD IMMEDIATELY): Discard anyone working at Google, Microsoft, Amazon, Meta, Apple, Netflix, Uber, Walmart, Salesforce, Swiggy, Zomato, Flipkart, Adobe, LinkedIn, Facebook, Atlassian, TCS, Infosys, Wipro, Cognizant, Accenture, Sabre, Cvent, Coupa.
+3. MASSIVE CORPORATE MONOLITHS (DISCARD IMMEDIATELY): Discard late-stage giant corporations where interns are rigidly siloed into one narrow function and prohibited from working across domains.
+4. MISSING / UNKNOWN COMPANY OR ROLE (DISCARD IMMEDIATELY): If the person's company or role is unknown, missing, null, or empty string, DISCARD IT (score = 0.0). EVERY output lead MUST have an explicit, named company and title extracted from the title/snippet.
+5. INTERNS & STUDENTS (DISCARD IMMEDIATELY): Discard anyone whose role or title contains: intern, internship, student, trainee, fresher, apprentice, undergraduate.
+6. PURE TECH / NON-PM ROLES: Discard pure software engineers, SDEs, QA testers, or devops engineers who have no product, brand, growth, or executive management responsibilities.
+7. NON-INDIA: Discard anyone located outside of India.
 
 Return ONLY a JSON array of objects wrapped in ```json ... ``` tags:
 [
@@ -533,12 +541,21 @@ class DiscoveryAgent:
         NON_INDIA  = ['usa', 'san francisco', 'new york', 'london', 'uk', 'canada',
                       'europe', 'australia', 'germany', 'singapore', 'dubai']
         PREFERRED_CITIES = ['delhi', 'bengaluru', 'bangalore', 'hyderabad', 'pune', 'mumbai', 'gurgaon', 'noida']
+        STEALTH_OR_SOLO = [
+            'stealth', 'in stealth', 'stealth mode', 'stealth startup',
+            'solo founder', 'seeking co-founder', 'looking for co-founder',
+            'looking for a co-founder', 'co-founder wanted', 'technical co-founder',
+            'working on an idea', 'ideation stage', 'side project', 'dorm room',
+            'pre-incorporation'
+        ]
         BIG_TECH   = ['google', 'microsoft', 'amazon', 'apple', 'meta', 'uber',
                       'stripe', 'netflix', 'adobe', 'salesforce', 'swiggy', 'zomato',
                       'flipkart', 'cvent', 'sabre', 'coupa', 'linkedin', 'facebook',
                       'walmart', 'atlassian', 'tcs', 'infosys', 'wipro', 'cognizant', 'accenture']
 
-        # Discard Big Tech, non-India, or intern/student leads immediately
+        # Discard stealth, solo founders seeking co-founders, Big Tech, non-India, or intern/student leads immediately
+        if any(kw in text for kw in STEALTH_OR_SOLO):
+            return 0.0
         if any(kw in text for kw in BIG_TECH):
             return 0.0
         if any(kw in text for kw in DISCARD):
@@ -676,6 +693,13 @@ class DiscoveryAgent:
             "flipkart", "cvent", "sabre", "coupa", "linkedin", "facebook",
             "walmart", "atlassian", "tcs", "infosys", "wipro", "cognizant", "accenture"
         ]
+        STEALTH_OR_SOLO_KEYWORDS = [
+            "stealth", "in stealth", "stealth mode", "stealth startup",
+            "solo founder", "seeking co-founder", "looking for co-founder",
+            "looking for a co-founder", "co-founder wanted", "technical co-founder",
+            "working on an idea", "ideation stage", "side project", "dorm room",
+            "pre-incorporation"
+        ]
 
         def _is_valid_startup_lead(lead: dict) -> bool:
             score = lead.get("score", 0)
@@ -685,12 +709,17 @@ class DiscoveryAgent:
             role = (lead.get("role") or "").lower()
             name = (lead.get("name") or "").lower()
             company = (lead.get("company") or "").lower().strip()
+            snippet = (lead.get("snippet") or "").lower()
+            combined = f"{role} {company} {snippet}"
 
             # Must have a valid, non-empty company name
             if not company or company in ("—", "null", "none", "unknown", "undefined"):
                 return False
             # Must not be an intern or student
             if any(kw in role or kw in name for kw in INTERN_KEYWORDS):
+                return False
+            # Must not be stealth or solo-founder seeking co-founder
+            if any(kw in combined for kw in STEALTH_OR_SOLO_KEYWORDS):
                 return False
             # Must NOT currently work at Big Tech or giant multinational
             if any(kw in company for kw in BIG_TECH_KEYWORDS):

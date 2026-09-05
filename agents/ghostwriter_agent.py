@@ -101,7 +101,7 @@ Paragraph 1: Genuine Curiosity & Grounded Vision
 
 Paragraph 2: The Solution & Concrete Proof
 - Natural transition: "I can actually help you guys achieve this."
-- Present Yatharth's credibility naturally to back up the claim: "I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I built automated B2B engines that captured 25+ extra qualified leads a month, and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. In fact, this message was researched and delivered by an autonomous system I built to test product execution live."
+- Present Yatharth's credibility naturally to back up the claim: "I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I worked cross-functionally across engineering, product, and sales to build automated B2B engines capturing 25+ extra qualified leads a month, and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. In fact, this message was researched and delivered by an autonomous system I built to test product execution live."
 
 Paragraph 3: The 12-Min Chat & Brief Check
 - Friendly, low-friction ask: "Let's do a quick 12-min call where we can discuss this and see how it matches both of us."
@@ -109,7 +109,7 @@ Paragraph 3: The 12-Min Chat & Brief Check
 - Close with: "Let me know a good time for us to do a meet!"
 
 CRITICAL RULES:
-- Separate the paragraphs with \\n\\n in the JSON string.
+- Separate the paragraphs with \n\n in the JSON string.
 - Address the person by their first name: "Hi [First Name],".
 - NEVER use words like: "imagine", "what if", "pleasure", "honored", "aspiring", "hope", "delve", "apologize", "sincerely", "opportunity", "passionate".
 - Keep length around 120-140 words. Easy to read, authentic, and impactful.
@@ -121,7 +121,7 @@ Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
 [
   {{
     "name": "Lead Name",
-    "drafted_dm": "Hi [First Name],\\n\\n[Company Name] has huge potential, but I am actually curious about [pain point] and what you guys are doing to handle this. See, [Company Name] has the potential to [grounded vision], and getting this right could really [outcome].\\n\\nI can actually help you guys achieve this. I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I built automated B2B engines that captured 25+ extra qualified leads a month, and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. In fact, this message was researched and delivered by an autonomous system I built to test product execution live.\\n\\nLet's do a quick 12-min call where we can discuss this and see how it matches both of us. You can check my resume and get a quick brief about me here: {resume_link}\\n\\nLet me know a good time for us to do a meet!"
+    "drafted_dm": "Hi [First Name],\n\n[Company Name] has huge potential, but I am actually curious about [pain point] and what you guys are doing to handle this. See, [Company Name] has the potential to [grounded vision], and getting this right could really [outcome].\n\nI can actually help you guys achieve this. I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I worked cross-functionally across engineering, product, and sales to build automated B2B engines capturing 25+ extra qualified leads a month, and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. In fact, this message was researched and delivered by an autonomous system I built to test product execution live.\n\nLet's do a quick 12-min call where we can discuss this and see how it matches both of us. You can check my resume and get a quick brief about me here: {resume_link}\n\nLet me know a good time for us to do a meet!"
   }}
 ]"""
 
