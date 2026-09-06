@@ -79,7 +79,7 @@ class PersonaAgent:
         for attempt in range(max_retries):
             try:
                 client, key_label = get_client_with_rotation()
-                model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+                model_name = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
                 response = client.models.generate_content(
                     model=model_name,
                     contents=self.history,

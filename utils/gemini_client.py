@@ -73,7 +73,7 @@ def generate_with_rotation(
     Call Gemini with automatic immediate round-robin key rotation on any error.
     Tries all keys in a circular round-robin fashion up to 3 full loops.
     """
-    model = model or os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+    model = model or os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
     global _current_idx
     keys = _get_keys()
 
