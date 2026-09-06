@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from google import genai
-from utils.gemini_client import get_client_with_rotation
+from utils.gemini_client import generate_with_rotation, get_client_with_rotation
 from google.genai import types
 from dotenv import load_dotenv
 from rich.console import Console
@@ -72,34 +72,20 @@ class PersonaAgent:
         self.history.append(
             types.Content(role="user", parts=[types.Part(text=user_message)])
         )
-        
-        import time
-        max_retries = 5
-        base_delay = 5
-        for attempt in range(max_retries):
-            try:
-                client, key_label = get_client_with_rotation()
-                model_name = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=self.history,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_PROMPT,
-                        temperature=0.8,
-                    ),
-                )
-                reply = response.text
-                self.history.append(
-                    types.Content(role="model", parts=[types.Part(text=reply)])
-                )
-                return reply
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)  # 5s, 10s, 20s, 40s
-                    console.print(f"[yellow]API rate limit hit. Waiting {delay}s before retry {attempt + 1}/{max_retries}...[/yellow]")
-                    time.sleep(delay)
-                else:
-                    raise e
+        cfg = types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            temperature=0.8,
+        )
+        model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+        reply = generate_with_rotation(
+            contents=self.history,
+            config=cfg,
+            model=model_name,
+        )
+        self.history.append(
+            types.Content(role="model", parts=[types.Part(text=reply)])
+        )
+        return reply
 
     def _extract_json(self, text: str) -> Optional[dict]:
         """Extract JSON block from Gemini response."""

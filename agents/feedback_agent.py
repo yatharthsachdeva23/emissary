@@ -68,11 +68,11 @@ class FeedbackAgent:
         console.print("\n[bold cyan]━━━ Feedback Loop ━━━[/bold cyan]")
         try:
             from utils.sheets import SheetsClient
-            client = SheetsClient()
-            if not client.available:
+            sheets = SheetsClient()
+            if not sheets.available:
                 console.print("[yellow]Sheets not configured — skipping feedback[/yellow]")
                 return False
-            pending = client.get_pending_feedback()
+            pending = sheets.get_pending_feedback()
         except Exception as e:
             console.print(f"[yellow]Feedback read error: {e}[/yellow]")
             return False
@@ -101,16 +101,16 @@ class FeedbackAgent:
         )
 
         try:
-            client, key_label = get_client_with_rotation()
-            model_name = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-            resp = client.models.generate_content(model=model_name, contents=prompt)
-            updated = self._extract_json(resp.text)
+            from utils.gemini_client import generate_with_rotation
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+            resp_text = generate_with_rotation(prompt, model=model_name)
+            updated = self._extract_json(resp_text)
             if not updated:
                 console.print("[red]Failed to parse updated instructions[/red]")
                 return False
 
             self._save_instructions(updated)
-            client.mark_feedback_applied([item["row_index"] for item in pending])
+            sheets.mark_feedback_applied([item["row_index"] for item in pending])
 
             console.print(Panel(
                 f"[green]Processed {len(pending)} feedback item(s)[/green]\n"

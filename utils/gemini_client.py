@@ -23,7 +23,7 @@ import re
 import math
 import time
 from datetime import date
-from typing import Optional
+from typing import Optional, Any
 
 from google import genai
 from dotenv import load_dotenv
@@ -32,8 +32,13 @@ from rich.console import Console
 load_dotenv()
 console = Console()
 
-# ── State ──────────────────────────────────────────────────────────────────────
-# ── State ──────────────────────────────────────────────────────────────────────
+MODEL_CASCADE = [
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+]
+
 _current_idx: int = 0  # Round-robin key pointer
 
 def _get_keys() -> list[str]:
@@ -64,19 +69,53 @@ def has_gemini_keys() -> bool:
     return len(_get_keys()) > 0
 
 
+def _is_high_demand_error(e: Exception) -> bool:
+    msg = str(e).lower()
+    return (
+        "503" in msg
+        or "unavailable" in msg
+        or "high demand" in msg
+        or "spikes in demand" in msg
+        or "overloaded" in msg
+        or "temporarily unavailable" in msg
+        or "capacity" in msg
+    )
+
+
+def _is_quota_exhausted_error(e: Exception) -> bool:
+    msg = str(e).lower()
+    return (
+        "429" in msg
+        or "resource_exhausted" in msg
+        or "quota" in msg
+        or "rate limit" in msg
+        or "exhausted" in msg
+        or "limit exceeded" in msg
+    )
+
+
 def generate_with_rotation(
-    prompt: str,
-    model: str = None,
-    max_retries_per_key: int = 1, # Not used directly as we switch keys immediately
+    prompt: Optional[str] = None,
+    model: Optional[str] = None,
+    contents: Any = None,
+    config: Any = None,
+    max_retries_per_key: int = 1,
 ) -> str:
     """
-    Call Gemini with automatic immediate round-robin key rotation on any error.
-    Tries all keys in a circular round-robin fashion up to 3 full loops.
+    Call Gemini with automatic model cascade on 503 high-demand errors
+    and key switching on 429 quota exhausted errors.
+
+    Model Cascade: 3.8-flash -> 3.6-flash -> 3.5-flash -> 3.5-flash-lite
     """
-    model = model or os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+    payload = contents if contents is not None else prompt
+    if payload is None:
+        raise ValueError("Either prompt or contents must be provided to generate_with_rotation.")
+
+    primary = model or os.getenv("GEMINI_MODEL", MODEL_CASCADE[0])
+    models_to_try = [primary] + [m for m in MODEL_CASCADE if m != primary]
+
     global _current_idx
     keys = _get_keys()
-
     if not keys:
         raise RuntimeError(
             "No Gemini API keys configured. Add GEMINI_API_KEY_1 (through _4) "
@@ -84,29 +123,66 @@ def generate_with_rotation(
         )
 
     num_keys = len(keys)
-    max_total_attempts = num_keys * 3  # up to 3 full circle loops
+    max_key_attempts = num_keys * 3  # up to 3 full circular passes
+    key_attempts = 0
 
-    for attempt in range(max_total_attempts):
+    while key_attempts < max_key_attempts:
         idx = _current_idx % num_keys
         key = keys[idx]
-        client = genai.Client(api_key=key)
         key_label = f"Key {idx + 1}"
+        client = genai.Client(api_key=key)
 
-        try:
-            resp = client.models.generate_content(model=model, contents=prompt)
-            # Success! Keep _current_idx where it is (or keep it pointing to this successful key index)
-            return resp.text
-        except Exception as e:
-            err = str(e)
-            console.print(
-                f"[yellow]⚠ Gemini {key_label} failed on attempt {attempt + 1}/{max_total_attempts} with error: {err}. "
-                f"Rotating to next key immediately...[/yellow]"
-            )
-            # Move the pointer to the next key for the next try
-            _current_idx = (idx + 1) % num_keys
+        model_idx = 0
+        while model_idx < len(models_to_try):
+            current_model = models_to_try[model_idx]
+            try:
+                kwargs = {"model": current_model, "contents": payload}
+                if config is not None:
+                    kwargs["config"] = config
+                resp = client.models.generate_content(**kwargs)
+                return resp.text
+            except Exception as e:
+                err = str(e)
+                if _is_high_demand_error(e):
+                    if model_idx + 1 < len(models_to_try):
+                        next_model = models_to_try[model_idx + 1]
+                        console.print(
+                            f"[yellow]⚠ Model '{current_model}' is experiencing high demand (503). "
+                            f"Falling back to '{next_model}' on {key_label}...[/yellow]"
+                        )
+                        model_idx += 1
+                        time.sleep(1.0)
+                        continue
+                    else:
+                        console.print(
+                            f"[yellow]⚠ All models ({', '.join(models_to_try)}) hit high demand. "
+                            f"Waiting 2s before trying next key...[/yellow]"
+                        )
+                        time.sleep(2.0)
+                        _current_idx = (idx + 1) % num_keys
+                        break
+                elif _is_quota_exhausted_error(e):
+                    console.print(
+                        f"[yellow]⚠ Gemini {key_label} limit exhausted (429/quota). "
+                        f"Switching to next key...[/yellow]"
+                    )
+                    _current_idx = (idx + 1) % num_keys
+                    time.sleep(0.5)
+                    break
+                else:
+                    console.print(
+                        f"[yellow]⚠ Gemini {key_label} failed on '{current_model}': {err[:140]}. "
+                        f"Switching to next key...[/yellow]"
+                    )
+                    _current_idx = (idx + 1) % num_keys
+                    time.sleep(1.0)
+                    break
+
+        key_attempts += 1
 
     raise RuntimeError(
-        f"⚠ All Gemini API keys failed after 3 full round-robin loops (total {max_total_attempts} attempts)."
+        f"⚠ All Gemini API keys and model fallbacks ({', '.join(models_to_try)}) failed "
+        f"after {max_key_attempts} attempts."
     )
 
 
