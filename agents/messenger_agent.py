@@ -21,6 +21,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 from rich.console import Console
@@ -431,6 +432,160 @@ class MessengerAgent:
             console.print(f"  [yellow]  ⚠ Pre-criteria check error: {e}. Proceeding anyway (failsafe).[/yellow]")
             return True
 
+    def _verify_experience_and_draft(self, page, lead: dict, profile: Optional[dict] = None, ghost_run: bool = False) -> dict:
+        """
+        Locate Top Card and Experience section, extract text, verify active company with Gemini,
+        and dynamically re-draft the cold outreach message if a company change is detected.
+        Enforces strict rule: NEVER mention the previous search company in the new message.
+        """
+        name = lead.get("name", "Unknown")
+        target_company = lead.get("company", "Unknown")
+        target_role = lead.get("role", "Unknown")
+
+        # 1. Scrape Top Card Header & Badges
+        top_card_text = ""
+        try:
+            top_card = page.locator("section:has(h1), .pv-top-card, .profile-topcard").first
+            if top_card.is_visible(timeout=2000):
+                top_card_text = top_card.inner_text().strip()
+        except Exception:
+            pass
+
+        # 2. Scrape Experience Section (with scroll to trigger lazy loading)
+        scraped_experience = ""
+        try:
+            page.evaluate("window.scrollBy(0, 500)")
+            page.wait_for_timeout(600)
+
+            exp_section = page.locator(
+                "section:has(h2:has-text('Experience')), "
+                "section:has(h2:text-is('Experience')), "
+                "section#experience-section, "
+                "section:has(#experience)"
+            ).first
+
+            if not exp_section.is_visible(timeout=2500):
+                page.evaluate("window.scrollBy(0, 500)")
+                page.wait_for_timeout(600)
+                exp_section = page.locator("section:has(span:has-text('Experience'))").first
+
+            if exp_section.is_visible(timeout=2000):
+                exp_section.scroll_into_view_if_needed()
+                human_sleep(1.0, 1.8, "Viewing Experience Section")
+                scraped_experience = exp_section.inner_text().strip()
+        except Exception as e:
+            console.print(f"  [dim]  Note during experience scroll: {e}[/dim]")
+
+        # Failsafe if DOM couldn't be extracted
+        if not top_card_text and not scraped_experience:
+            console.print(f"  [yellow]  ⚠ Could not read profile experience or top card. Proceeding with existing data.[/yellow]")
+            return {
+                "is_same_company": True,
+                "is_relevant": True,
+                "reason": "DOM unreadable (failsafe)",
+                "current_company": target_company,
+                "current_position": target_role,
+                "drafted_dm": lead.get("drafted_dm", ""),
+                "drafted_note": lead.get("connection_note", "")
+            }
+
+        # 3. Call Gemini with Rotation to Verify Experience and Draft if Changed
+        try:
+            from utils.gemini_client import generate_with_rotation
+            from agents.ghostwriter_agent import GhostwriterAgent
+            writer = GhostwriterAgent()
+            resume_link = writer.resume_link
+
+            verification_prompt = f"""You are a professional profile verification and personalization engine for Yatharth's outreach system.
+Yatharth is a 4th-year student at Delhi Technological University (DTU, 9.3 CGPA) and former AI PM Intern at NoBrokerHood, seeking a 2-month PM/APM intern role at high-growth startups or tech companies.
+
+TARGET LEAD DETAILS FROM SEARCH:
+- Name: {name}
+- Expected Company from Search: {target_company}
+- Expected Role/Position: {target_role}
+
+TOP CARD HEADER & CURRENT BADGE TEXT FROM LINKEDIN:
+\"\"\"
+{top_card_text}
+\"\"\"
+
+SCRAPED LINKEDIN EXPERIENCE SECTION CONTENT:
+\"\"\"
+{scraped_experience}
+\"\"\"
+
+YOUR TASKS:
+1. Identify the person's CURRENT ACTIVE job(s) from the scraped Experience and Top Card text.
+   CRITICAL DATE RULE: A job is ONLY current/active if its date range explicitly ends in "- Present", "Present", or if it is currently listed as their current company badge in the top card. If a job has a completed date range like "Nov 2022 - Jan 2026" or "2021 - 2024", IT IS A COMPLETED PAST ROLE AND MUST NOT BE SELECTED AS THEIR CURRENT COMPANY!
+2. Resolve multiple "Present" jobs:
+   - Operating vs Passive: Ignore roles like "Investor", "Advisor", "Consultant", "Mentor", or "Board Member". Focus on their core operational role (Founder, Co-Founder, VP, Head of Product, Director, PM, Engineering Lead, etc.).
+   - Incremental/Recent: If they have multiple operating roles, pick the one that started most recently.
+3. Compare this resolved current company with the expected company ("{target_company}").
+   Company variations such as "Razorpay" vs "Razorpay Software Pvt Ltd" or "Flipkart" vs "Flipkart Internet" ARE THE SAME COMPANY (is_same_company = true).
+4. Determine if it is the SAME company or if they have LEFT / CHANGED companies:
+   - If SAME company:
+     - is_same_company: true
+     - is_relevant: true
+     - current_company: "{target_company}"
+     - current_position: resolved position
+     - drafted_dm: null
+     - drafted_note: null
+   - If DIFFERENT company (they transitioned to a new company):
+     - is_same_company: false
+     - Check if they are currently actively employed at a real company. If they are unemployed, student only, "seeking opportunities", or have no active company, set is_relevant = false.
+     - If they are at a new company, set is_relevant = true.
+     - Extract current_company and current_position.
+     - DRAFT A FRESH COLD MESSAGE (drafted_dm) and connection hook (drafted_note) FOR THIS NEW COMPANY!
+
+CRITICAL MESSAGE DRAFTING RULES FOR NEW COMPANY:
+- TONE: Authentically builder-to-builder, smart, humble, peer-to-peer. NO sales pitch, NO fluff ("imagine if", "what if", "honored", "synergy").
+- STRICTEST USER RULE - DO NOT MENTION PREVIOUS COMPANY: You must NEVER mention, cite, or hint at their previous company ("{target_company}"). Do NOT say "I saw you were at {target_company}" or "Congrats on moving from {target_company}". Address them exclusively and directly as a leader at their NEW current company.
+- MESSAGE STRUCTURE (3 paragraphs):
+  Paragraph 1: "Hi [First Name],\n\n[New Company] has huge potential, but I am actually curious about [specific operational/product challenge in their new domain] and what you guys are doing to handle this. See, [New Company] has the potential to [grounded vision of scale/efficiency in their domain], and getting this right could really [tangible business/product outcome]."
+  Paragraph 2: "I can actually help you guys achieve this. I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I worked cross-functionally across engineering, product, and sales to build automated B2B engines capturing 25+ extra qualified leads a month, and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. In fact, this message was researched and delivered by an autonomous system I built to test product execution live."
+  Paragraph 3: "Let's do a quick 12-min call where we can discuss this and see how it matches both of us. You can check my resume and get a quick brief about me here: {resume_link}\n\nLet me know a good time for us to do a meet!"
+
+Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
+{{
+  "is_same_company": true/false,
+  "is_relevant": true/false,
+  "reason": "Brief explanation of date and company determination",
+  "current_company": "Resolved current company name",
+  "current_position": "Resolved current job title/position",
+  "drafted_note": "A 280-char connection hook or null if same company",
+  "drafted_dm": "The drafted 3-paragraph direct message for the new company or null if same company"
+}}
+"""
+            resp_text = generate_with_rotation(verification_prompt)
+            match = re.search(r"```json\s*([\s\S]+?)\s*```", resp_text)
+            if match:
+                res_data = json.loads(match.group(1))
+            else:
+                res_data = json.loads(resp_text.strip())
+
+            # Post-check company fuzzy match to prevent false positives
+            from utils.safety import is_same_company_name
+            res_company = (res_data.get("current_company") or "").strip()
+            if is_same_company_name(target_company, res_company) or is_same_company_name(target_company, top_card_text):
+                res_data["is_same_company"] = True
+                res_data["is_relevant"] = True
+                res_data["current_company"] = target_company
+
+            return res_data
+
+        except Exception as e:
+            console.print(f"  [yellow]  ⚠ Experience verification error: {e}. Proceeding with existing lead data.[/yellow]")
+            return {
+                "is_same_company": True,
+                "is_relevant": True,
+                "reason": f"Verification error: {e}",
+                "current_company": target_company,
+                "current_position": target_role,
+                "drafted_dm": lead.get("drafted_dm", ""),
+                "drafted_note": lead.get("connection_note", "")
+            }
+
+
     def _is_safe_top_card_button(self, page, element) -> bool:
         """
         Anti-Misclick Guard: Ensures the element is strictly inside the target profile's
@@ -780,14 +935,25 @@ class MessengerAgent:
 
     # ─── Main Run ──────────────────────────────────────────────────────────────
 
-    def run(self, leads: list[dict], dry_run: bool = False, test_mode: bool = False, ghost_run: bool = False) -> list[dict]:
+    def run(self, leads: list[dict], dry_run: bool = False, test_mode: bool = False, ghost_run: bool = False, profile: Optional[dict] = None) -> list[dict]:
         """
         Send BLANK connection requests for all leads.
 
         dry_run:    Print what would happen, don't open browser.
         test_mode:  Open browser, visit profiles, but DON'T click Send.
         ghost_run:  Full browser run but skip the final 'Send without a note' click.
+        profile:    User profile dictionary for personalization context.
         """
+        if profile is None:
+            profile_path = DATA_DIR / "my_profile.json"
+            if profile_path.exists():
+                try:
+                    with open(profile_path, "r", encoding="utf-8") as f:
+                        profile = json.load(f)
+                except Exception:
+                    profile = {}
+            else:
+                profile = {}
         console.print("\n[bold cyan]━━━ Phase 4: Messenger (Blank Requests) ━━━[/bold cyan]")
 
         if not leads:
@@ -964,6 +1130,64 @@ class MessengerAgent:
                             else:
                                 human_sleep(6, 12, "Between connections")
                             continue
+
+                        # ── Experience Check & Dynamic Company Verification ──
+                        verification = self._verify_experience_and_draft(page, lead, profile=profile, ghost_run=ghost_run)
+
+                        is_relevant = verification.get("is_relevant", True)
+                        if not is_relevant:
+                            reason = verification.get("reason", "Irrelevant or left company without active role")
+                            console.print(f"  [yellow]  ⚠ Skipped: Irrelevant / Left without active company ({reason})[/yellow]")
+                            lead["status"] = "Irrelevant"
+                            self.skipped_count += 1
+                            self.results.append(lead)
+                            try:
+                                from utils.sheets import SheetsClient
+                                SheetsClient().update_status(url, "Irrelevant")
+                                mark_contacted(url, "Irrelevant")
+                            except Exception:
+                                pass
+
+                            if session_visit_count > 0 and session_visit_count % self.batch_size == 0 and visit_count < visit_limit:
+                                batch_sleep(self.batch_sleep_min, self.batch_sleep_max)
+                            else:
+                                human_sleep(6, 12, "Between connections")
+                            continue
+
+                        is_same_company = verification.get("is_same_company", True)
+                        new_company = (verification.get("current_company") or "").strip() or company
+                        new_position = (verification.get("current_position") or "").strip() or lead.get("role", "Unknown")
+
+                        from utils.safety import is_same_company_name
+                        if not is_same_company and not is_same_company_name(company, new_company):
+                            console.print(f"  [yellow]  ⚠ Company changed for {name}! [dim]Search Lead: '{company}' → Real Experience: '{new_company}' ({new_position})[/dim][/yellow]")
+
+                            # Update in-memory lead data so downstream steps and log_leads reflect the new company
+                            lead["company"] = new_company
+                            lead["role"] = new_position
+
+                            new_dm = verification.get("drafted_dm")
+                            new_note = verification.get("drafted_note")
+                            if new_dm:
+                                lead["drafted_dm"] = new_dm
+                                console.print(f"  [cyan]  ✓ Fresh cold message drafted for {new_company} (previous company strictly omitted).[/cyan]")
+                            if new_note:
+                                lead["connection_note"] = new_note
+
+                            # Update Google Sheet row with new company, position, and message
+                            try:
+                                from utils.sheets import SheetsClient
+                                sheets_client = SheetsClient()
+                                sheets_client.update_lead_company_and_dm(
+                                    profile_url=url,
+                                    new_company=new_company,
+                                    new_role=new_position,
+                                    new_dm=lead.get("drafted_dm", ""),
+                                    new_note=lead.get("connection_note", "")
+                                )
+                                console.print(f"  [green]  ✓ Updated Google Sheet with new company '{new_company}' and position '{new_position}'[/green]")
+                            except Exception as e_sheet:
+                                console.print(f"  [dim]  Note on sheet update: {e_sheet}[/dim]")
 
                         if test_mode:
                             console.print(f"  [cyan]  TEST: Visited profile, NOT sending.[/cyan]")

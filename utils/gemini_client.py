@@ -28,9 +28,18 @@ from typing import Optional, Any
 from google import genai
 from dotenv import load_dotenv
 from rich.console import Console
+import sys
+import io
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 load_dotenv()
-console = Console()
+console = Console(legacy_windows=False)
 
 MODEL_CASCADE = [
     "gemini-3.8-flash",

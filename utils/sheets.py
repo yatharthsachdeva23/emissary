@@ -205,6 +205,37 @@ class SheetsClient:
             console.print(f"[red]Status update error: {e}[/red]")
         return False
 
+    def update_lead_company_and_dm(
+        self,
+        profile_url: str,
+        new_company: str,
+        new_role: str = "",
+        new_dm: str = "",
+        new_note: str = ""
+    ) -> bool:
+        """
+        Update the Company, Role, Drafted_DM, and optionally Connection Note for a lead by profile URL.
+        Used when profile verification discovers the lead has moved to a new company.
+        """
+        if not self.available or not profile_url:
+            return False
+        try:
+            cell = self._sheet.find(profile_url)
+            if cell:
+                row_idx = cell.row
+                if new_company:
+                    self._safe_update_cell(row_idx, COL_COMPANY + 1, new_company)
+                if new_role:
+                    self._safe_update_cell(row_idx, COL_ROLE + 1, new_role)
+                if new_dm:
+                    self._safe_update_cell(row_idx, COL_DM + 1, new_dm)
+                if new_note:
+                    self._safe_update_cell(row_idx, COL_NOTE + 1, new_note)
+                return True
+        except Exception as e:
+            console.print(f"[red]Error updating company/role in sheet: {e}[/red]")
+        return False
+
     def update_status_by_name(self, name: str, status: str, url: str = "") -> bool:
         """
         Update the status for a lead found by URL (exact, fastest) or fuzzy name match.

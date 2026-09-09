@@ -297,6 +297,7 @@ def main():
                     dry_run=flags["dry_run"],
                     test_mode=flags["test_mode"],
                     ghost_run=flags["ghost_run"],
+                    profile=profile,
                 )
             except KeyboardInterrupt:
                 # Grab whatever the messenger managed to process
