@@ -635,7 +635,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                 console.print(f"  [yellow]  ⚠ Invite already pending for {name}. Skipping.[/yellow]")
                 return False, "already_pending"
 
-            # --- 2. THE CONNECT BUTTON HUNT ---
+            # --- 2. THE CONNECT BUTTON HUNT (ONE DECISIVE CHANCE) ---
             top_card = page.locator(
                 ".scaffold-layout__main-column section:has(h1), "
                 ".scaffold-layout__main section:has(h1), "
@@ -649,272 +649,219 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
             else:
                 search_area = page.locator(".scaffold-layout__main-column, main").first
 
-            candidates = []
+            connect_btn = None
 
-            # PATH 1: TYPE A — Direct custom-invite href or aria-label
-            direct_btns = search_area.locator(
-                "a[href*='/preload/custom-invite/'], "
-                "a[href*='custom-invite'], "
-                "button[aria-label*='Invite'][aria-label*='connect'], "
-                "a[aria-label*='Invite'][aria-label*='connect']"
-            ).all()
-            for btn in direct_btns:
-                if self._is_safe_top_card_button(page, btn):
-                    candidates.append((btn, "direct"))
-                    break
+            # Priority 1: Direct Connect button visible on the top card
+            direct_selectors = [
+                "button:has(span:text-is('Connect'))",
+                "a:has(span:text-is('Connect'))",
+                "button:text-is('Connect')",
+                "a:text-is('Connect')",
+                "button[aria-label*='Invite'][aria-label*='connect']",
+                "a[aria-label*='Invite'][aria-label*='connect']",
+                "a[href*='/preload/custom-invite/']",
+                "a[href*='custom-invite']",
+            ]
+            for sel in direct_selectors:
+                try:
+                    btns = search_area.locator(sel).all()
+                    for b in btns:
+                        if self._is_safe_top_card_button(page, b):
+                            connect_btn = b
+                            break
+                    if connect_btn:
+                        break
+                except Exception:
+                    continue
 
-            # PATH 2: Text-based Connect button
-            try:
-                all_connect = search_area.locator(
-                    "button:has(span:text-is('Connect')), "
-                    "a:has(span:text-is('Connect')), "
-                    "button:text-is('Connect'), "
-                    "a:text-is('Connect')"
-                ).all()
-                for btn in all_connect:
-                    if self._is_safe_top_card_button(page, btn):
-                        if not any(c[0] == btn for c in candidates):
-                            candidates.append((btn, "direct"))
-            except Exception:
-                pass
-
-            # PATH 3: ··· (More) dropdown — for Creator profiles
-            try:
+            # Priority 2: If not directly visible, check the single "More" actions dropdown in the top card
+            if not connect_btn:
                 more_selectors = [
                     "button[aria-label='More actions']",
                     "button[aria-label='More']",
                     "button[aria-label*='More actions']",
                     "button[aria-label^='More']",
-                    "button:has(svg[data-test-icon*='overflow'])",
-                    "button:has(svg[data-test-icon='overflow-web-horizontal-small'])",
                     "button.artdeco-dropdown__trigger",
                     "button:has-text('More')",
-                    "button:has-text('...')",
                 ]
+                more_btn = None
                 for sel in more_selectors:
-                    btns = search_area.locator(sel).all()
-                    for more_btn in btns:
-                        if self._is_safe_top_card_button(page, more_btn):
-                            if not any(c[0] == more_btn for c in candidates):
-                                candidates.append((more_btn, "dropdown"))
-            except Exception:
-                pass
+                    try:
+                        btns = search_area.locator(sel).all()
+                        for mb in btns:
+                            if self._is_safe_top_card_button(page, mb):
+                                more_btn = mb
+                                break
+                        if more_btn:
+                            break
+                    except Exception:
+                        continue
 
-            if not candidates:
-                console.print(f"  [red]  ❌ Connect button completely hidden/missing for {name}. Manual review needed.[/red]")
-                return False, "connect_button_missing"
-
-            # --- 3. EXECUTE THE CLICK AND VERIFY LOOP ---
-            for attempt, (btn, btn_type) in enumerate(candidates, 1):
-                try:
-                    connect_btn = None
-                    if btn_type == "direct":
-                        connect_btn = btn
-                    elif btn_type == "dropdown":
-                        btn.scroll_into_view_if_needed()
+                if more_btn:
+                    try:
+                        more_btn.scroll_into_view_if_needed()
                         page.evaluate("window.scrollBy(0, -100)")
                         page.wait_for_timeout(400)
                         try:
-                            btn.click(force=True)
+                            more_btn.click(force=True)
                         except Exception:
-                            btn.evaluate("node => node.click()")
+                            more_btn.evaluate("node => node.click()")
                         page.wait_for_timeout(1500)
 
                         dropdown_connect_selectors = [
                             "[componentkey*='ConnectButton']",
                             "[componentkey*='connect']",
                             "[componentkey*='Connect']",
-                            "a[componentkey*='connect']",
-                            "div[componentkey*='connect']",
-                            "[aria-label*='Invite'][aria-label*='connect']",
-                            "[aria-label*='invite'][aria-label*='connect']",
-                            "div[aria-label*='Invite to connect']",
-                            "a[aria-label*='Invite to connect']",
-                            "button[aria-label*='Invite to connect']",
-                            "[aria-label*='Connect with']",
-                            "a[href*='custom-invite']",
-                            "a[href*='/preload/custom-invite/']",
-                            ".artdeco-dropdown__content div:has-text('Connect')",
-                            ".artdeco-dropdown__content a:has-text('Connect')",
-                            ".artdeco-dropdown__content button:has-text('Connect')",
-                            "[role='menu'] div:has-text('Connect')",
-                            "[role='menu'] a:has-text('Connect')",
-                            "[role='menu'] button:has-text('Connect')",
-                            "[role='menuitem']:has-text('Connect')",
                             "div[role='menuitem']:has-text('Connect')",
-                            "a[role='menuitem']:has-text('Connect')",
                             "button[role='menuitem']:has-text('Connect')",
-                            ".artdeco-dropdown__content span:text-is('Connect')",
-                            "[role='menu'] span:text-is('Connect')",
+                            "a[role='menuitem']:has-text('Connect')",
+                            ".artdeco-dropdown__content div:has-text('Connect')",
+                            ".artdeco-dropdown__content button:has-text('Connect')",
+                            ".artdeco-dropdown__content a:has-text('Connect')",
+                            "[aria-label*='Invite'][aria-label*='connect']",
+                            "[aria-label*='Connect with']",
                             "div.artdeco-dropdown__item:has-text('Connect')",
                             "li:has-text('Connect')",
-                            "div[tabindex='0']:has-text('Connect')",
-                            "a[data-tabindex='0']:has-text('Connect')",
+                            "a[href*='custom-invite']",
                         ]
-
-                        dropdown_connect = None
-                        for sel in dropdown_connect_selectors:
+                        for d_sel in dropdown_connect_selectors:
                             try:
-                                candidates_loc = page.locator(sel).all()
-                                for cand in candidates_loc:
-                                    if cand.is_visible(timeout=500):
-                                        try:
-                                            rect = cand.evaluate("el => { const r = el.getBoundingClientRect(); return {x: r.x, y: r.y, w: r.width, h: r.height}; }")
-                                            if rect and rect.get("x", 999) < 800 and rect.get("y", 999) < 950 and rect.get("w", 0) > 0:
-                                                dropdown_connect = cand
-                                                break
-                                        except Exception:
-                                            dropdown_connect = cand
-                                            break
-                                if dropdown_connect:
+                                cand = page.locator(d_sel).first
+                                if cand.is_visible(timeout=600):
+                                    connect_btn = cand
                                     break
                             except Exception:
                                 continue
-
-                        if dropdown_connect:
-                            connect_btn = dropdown_connect
-                        else:
-                            try:
-                                page.keyboard.press("Escape")
-                                page.wait_for_timeout(500)
-                            except Exception:
-                                pass
-                            continue  # Try next candidate
-
-                    if not connect_btn or not connect_btn.is_visible():
-                        continue
-
-                    if len(candidates) > 1:
-                        console.print(f"  [cyan]  ✓ Trying Connect candidate {attempt}/{len(candidates)} for {name}...[/cyan]")
-                    else:
-                        console.print(f"  [cyan]  ✓ Found Connect button for {name}. Clicking...[/cyan]")
-
-                    connect_btn.scroll_into_view_if_needed()
-                    page.evaluate("window.scrollBy(0, -150)")
-                    page.wait_for_timeout(500)
-
-                    url_before_click = page.url
-                    try:
-                        connect_btn.click(force=True)
                     except Exception:
-                        connect_btn.evaluate("node => node.click()")
-                    page.wait_for_timeout(2500)
+                        pass
 
-                    if "custom-invite" in page.url or page.url != url_before_click:
-                        try:
-                            page.wait_for_load_state("domcontentloaded", timeout=10000)
-                        except Exception:
-                            pass
-                        page.wait_for_timeout(1500)
+            if not connect_btn or not connect_btn.is_visible():
+                console.print(f"  [red]  ❌ Connect button completely hidden/missing for {name}.[/red]")
+                return False, "connect_button_missing"
 
-                    send_blank_btn = None
-                    send_blank_selectors = [
-                        "div[role='dialog'] button[aria-label='Send without a note']",
-                        "div[role='dialog'] button:has-text('Send without a note')",
-                        "div[role='dialog'] button[aria-label='Send invitation']",
-                        "div[role='dialog'] button:has-text('Send invitation')",
-                        "button[aria-label='Send without a note']",
-                        "button:has-text('Send without a note')",
-                        "button[aria-label='Send invitation']",
-                        "button:has-text('Send invitation')",
-                        "div[role='dialog'] button[aria-label='Send now']",
-                        "div[role='dialog'] button:has-text('Send now')",
-                        "button[aria-label='Send now']",
-                        "button:has-text('Send now')",
-                        "div[role='dialog'] button:has-text('Send')",
-                        "button:has-text('Send')",
-                    ]
+            # --- 3. EXECUTE THE SINGLE-CHANCE CLICK & SEND ---
+            console.print(f"  [cyan]  ✓ Found Connect button for {name}. Clicking...[/cyan]")
 
-                    page.wait_for_timeout(1000)
+            connect_btn.scroll_into_view_if_needed()
+            page.evaluate("window.scrollBy(0, -150)")
+            page.wait_for_timeout(500)
 
-                    for sel in send_blank_selectors:
-                        try:
-                            el = page.locator(sel).first
-                            if el.is_visible(timeout=2000):
-                                send_blank_btn = el
-                                break
-                        except Exception:
-                            continue
+            url_before_click = page.url
+            try:
+                connect_btn.click(force=True)
+            except Exception:
+                connect_btn.evaluate("node => node.click()")
+            page.wait_for_timeout(2500)
 
-                    if not send_blank_btn:
-                        is_pending = False
-                        try:
-                            pending_loc = page.locator("button:has-text('Pending'), [aria-label*='Pending'], [aria-label*='pending'], div:has-text('Invitation sent'), div:has-text('Invite sent')").first
-                            if pending_loc.is_visible(timeout=1500):
-                                is_pending = True
-                        except Exception:
-                            pass
-                        
-                        if is_pending:
-                            console.print(f"  [green]  ✓ Instant connection invite sent for {name}![/green]")
-                            human_sleep(2.0, 4.0, "After send")
-                            return True, "Request Sent"
+            if "custom-invite" in page.url or page.url != url_before_click:
+                try:
+                    page.wait_for_load_state("domcontentloaded", timeout=10000)
+                except Exception:
+                    pass
+                page.wait_for_timeout(1500)
 
-                    # ── SAFETY NET: Name Verification ────────────────────────────────
-                    if send_blank_btn:
-                        first_name = name.split()[0].lower() if name else ""
-                        name_verified = False
-                        dialog_text = ""
-                        for dialog_sel in [
-                            "div[role='dialog']",
-                            "div[data-test-modal]",
-                            "[role='dialog']",
-                        ]:
-                            try:
-                                el = page.locator(dialog_sel).first
-                                if el.is_visible(timeout=1000):
-                                    txt = el.inner_text().lower()
-                                    if txt:
-                                        dialog_text = txt
-                                        break
-                            except Exception:
-                                continue
+            send_blank_btn = None
+            send_blank_selectors = [
+                "div[role='dialog'] button[aria-label='Send without a note']",
+                "div[role='dialog'] button:has-text('Send without a note')",
+                "div[role='dialog'] button[aria-label='Send invitation']",
+                "div[role='dialog'] button:has-text('Send invitation')",
+                "button[aria-label='Send without a note']",
+                "button:has-text('Send without a note')",
+                "button[aria-label='Send invitation']",
+                "button:has-text('Send invitation')",
+                "div[role='dialog'] button[aria-label='Send now']",
+                "div[role='dialog'] button:has-text('Send now')",
+                "button[aria-label='Send now']",
+                "button:has-text('Send now')",
+                "div[role='dialog'] button:has-text('Send')",
+                "button:has-text('Send')",
+            ]
 
-                        if dialog_text and first_name and first_name in dialog_text:
-                            name_verified = True
-                        elif not dialog_text:
-                            name_verified = True
-                        else:
-                            console.print(
-                                f"  [bold red]  ✘ SAFETY NET: Modal target name mismatch! Expected '{first_name}' "
-                                f"in modal text, but found: '{dialog_text[:60]}...'. ABORTING connection attempt to prevent misclick.[/bold red]"
-                            )
-                            try:
-                                page.keyboard.press("Escape")
-                                page.wait_for_timeout(1000)
-                            except Exception:
-                                pass
-                            return False, "modal_name_mismatch"
+            page.wait_for_timeout(1000)
 
-                    if send_blank_btn and name_verified:
-                        if ghost_run:
-                            console.print(f"  [dim]  GHOST RUN: Would have clicked '{send_blank_btn.inner_text().strip()}' for {name}[/dim]")
-                            return True, "ghost_sent"
-                        page.wait_for_timeout(1500)
-
-                        try:
-                            send_blank_btn.focus()
-                            page.wait_for_timeout(500)
-                            page.keyboard.press("Enter")
-                        except Exception:
-                            send_blank_btn.evaluate("node => node.click()")
-
-                        human_sleep(2.0, 3.5, "After send")
-                        return True, "Blank Sent"
-                    else:
-                        console.print(f"  [yellow]  ⚠ Reached Connect modal, but couldn't find the Send button! Trying next...[/yellow]")
-                        try:
-                            page.keyboard.press("Escape")
-                            page.wait_for_timeout(1000)
-                        except Exception:
-                            pass
-                        continue
-
-                except Exception as e:
-                    console.print(f"  [dim]  Attempt {attempt} for {name} error: {e}[/dim]")
+            for sel in send_blank_selectors:
+                try:
+                    el = page.locator(sel).first
+                    if el.is_visible(timeout=2000):
+                        send_blank_btn = el
+                        break
+                except Exception:
                     continue
 
-            return False, "click_failed"
+            if not send_blank_btn:
+                is_pending = False
+                try:
+                    pending_loc = page.locator("button:has-text('Pending'), [aria-label*='Pending'], [aria-label*='pending'], div:has-text('Invitation sent'), div:has-text('Invite sent')").first
+                    if pending_loc.is_visible(timeout=1500):
+                        is_pending = True
+                except Exception:
+                    pass
+                
+                if is_pending:
+                    console.print(f"  [green]  ✓ Instant connection invite sent for {name}![/green]")
+                    human_sleep(2.0, 4.0, "After send")
+                    return True, "Request Sent"
+
+            # ── SAFETY NET: Name Verification ────────────────────────────────
+            if send_blank_btn:
+                first_name = name.split()[0].lower() if name else ""
+                name_verified = False
+                dialog_text = ""
+                for dialog_sel in [
+                    "div[role='dialog']",
+                    "div[data-test-modal]",
+                    "[role='dialog']",
+                ]:
+                    try:
+                        el = page.locator(dialog_sel).first
+                        if el.is_visible(timeout=1000):
+                            txt = el.inner_text().lower()
+                            if txt:
+                                dialog_text = txt
+                                break
+                    except Exception:
+                        continue
+
+                if dialog_text and first_name and first_name in dialog_text:
+                    name_verified = True
+                elif not dialog_text:
+                    name_verified = True
+                else:
+                    console.print(
+                        f"  [bold red]  ✘ SAFETY NET: Modal target name mismatch! Expected '{first_name}' "
+                        f"in modal text, but found: '{dialog_text[:60]}...'. ABORTING connection attempt to prevent misclick.[/bold red]"
+                    )
+                    try:
+                        page.keyboard.press("Escape")
+                        page.wait_for_timeout(1000)
+                    except Exception:
+                        pass
+                    return False, "modal_name_mismatch"
+
+            if send_blank_btn and name_verified:
+                if ghost_run:
+                    console.print(f"  [dim]  GHOST RUN: Would have clicked '{send_blank_btn.inner_text().strip()}' for {name}[/dim]")
+                    return True, "ghost_sent"
+                page.wait_for_timeout(1500)
+
+                try:
+                    send_blank_btn.focus()
+                    page.wait_for_timeout(500)
+                    page.keyboard.press("Enter")
+                except Exception:
+                    send_blank_btn.evaluate("node => node.click()")
+
+                human_sleep(2.0, 3.5, "After send")
+                return True, "Blank Sent"
+            else:
+                console.print(f"  [yellow]  ⚠ Could not find Send button in modal for {name}.[/yellow]")
+                try:
+                    page.keyboard.press("Escape")
+                    page.wait_for_timeout(1000)
+                except Exception:
+                    pass
+                return False, "click_failed"
 
         except Exception as e:
             console.print(f"  [red]  ❌ Error sending connection to {name}: {e}[/red]")
