@@ -17,6 +17,7 @@ from typing import Optional
 from google import genai
 from dotenv import load_dotenv
 from utils.gemini_client import get_client_with_rotation, mark_key_exhausted
+from utils.text_cleaner import clean_first_name, clean_company_name
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -45,7 +46,9 @@ ABOUT YATHARTH'S BACKGROUND & ACHIEVEMENTS:
 
 TARGET LEAD INFORMATION (VERIFIED LIVE FROM LINKEDIN):
 - Name: {lead_name}
-- Verified Current Company: {lead_company}
+- Clean First Name: {first_name}
+- Current Company (Entity): {lead_company}
+- Conversational Company Name: {clean_company}
 - Verified Current Role/Title: {lead_role}
 - LinkedIn Top Card / Headline:
 \"\"\"
@@ -60,11 +63,11 @@ YOUR DEEP-DIVE RESEARCH & DRAFTING INSTRUCTIONS:
 Execute this in four rigorous steps:
 
 STEP 1: COMPANY & PRODUCT DECONSTRUCTION
-Analyze what {lead_company} actually does. Identify their core platform/offering, target users (B2B, B2C, Enterprise, etc.), and their primary business model.
+Analyze what {clean_company} actually does. Identify their core platform/offering, target users (B2B, B2C, Enterprise, etc.), and their primary business model.
 (Produce a crisp 1-2 sentence breakdown for the company_analysis field).
 
 STEP 2: OPERATIONAL BOTTLENECK AUDIT (STRICT DOMAIN BOUNDARIES)
-Identify a concrete, high-friction operational, technical, or product bottleneck at {lead_company} that falls STRICTLY into one of Yatharth's core builder domains:
+Identify a concrete, high-friction operational, technical, or product bottleneck at {clean_company} that falls STRICTLY into one of Yatharth's core builder domains:
 1. Tech & AI Automation: Agentic workflows, web scrapers, data pipelines, search algorithm optimization, automating manual engineering or operations tasks.
 2. Product Management: User activation drop-offs, onboarding friction, feature discovery loops, product-led growth mechanics, sprint execution velocity.
 3. B2B Sales & Growth Funnels: Outbound pipeline generation engines, automated lead qualification, reducing SDR prospecting grind, lead enrichment workflows.
@@ -82,7 +85,10 @@ Write an authentic, builder-to-builder direct message (drafted_dm) structured ex
 Paragraph 1: Genuine Curiosity & Grounded Vision
 - Open with: "Hi {first_name},"
 {cohort_p1_instruction}
-- Then ground the vision naturally: "See, {lead_company} has the potential to [concrete outcome in their domain], and getting this right could really [tangible product/business benefit]."
+- Then ground the vision naturally with one of these variations:
+  - "See, {clean_company} has the potential to [concrete outcome in their domain], and getting this right could really [tangible product/business benefit]."
+  - "If {clean_company} nails [concrete outcome in their domain], it could really [tangible product/business benefit]."
+  - "{clean_company} is in a prime spot to [concrete outcome in their domain], which would directly [tangible product/business benefit]."
 
 Paragraph 2: The Solution & Concrete Proof
 - Natural transition: "I can actually help you guys achieve this."
@@ -93,14 +99,15 @@ Paragraph 3: The 12-Min Chat & Brief Check
 
 CRITICAL RULES:
 - Separate the 3 paragraphs with \\n\\n in the JSON string.
-- Address the person by their first name: "Hi {first_name},".
-- STRICTEST RULE - DO NOT MENTION PREVIOUS COMPANIES: If the lead recently changed companies or has older jobs in their experience timeline, you must NEVER mention, reference, or hint at their previous company. Treat them purely as a leader at {lead_company}.
+- Address the person by their clean first name: "Hi {first_name},". Never address by titles like "Hi Dr," or "Hi Mr,".
+- Use the clean, conversational company name "{clean_company}" (NEVER use formal suffixes like "Pvt. Ltd.", "Ltd", "Inc", "LLC").
+- STRICTEST RULE - DO NOT MENTION PREVIOUS COMPANIES: If the lead recently changed companies or has older jobs in their experience timeline, you must NEVER mention, reference, or hint at their previous company. Treat them purely as a leader at {clean_company}.
 - NEVER use words like: "imagine", "what if", "pleasure", "honored", "aspiring", "hope", "delve", "apologize", "sincerely", "opportunity", "passionate", "revolutionize", "synergy".
 - Keep length around 120-140 words. Easy to read, authentic, and impactful.
 
 Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
 {{
-  "company_analysis": "Crisp 1-2 sentence breakdown of what {lead_company} builds and their market.",
+  "company_analysis": "Crisp 1-2 sentence breakdown of what {clean_company} builds and their market.",
   "identified_pain_point": "The specific bottleneck identified in Tech/AI, PM, Sales Funnels, or Growth Marketing.",
   "grounded_vision": "Concrete picture of scale/efficiency.",
   "drafted_dm": "The complete 3-paragraph direct message formatted with \\n\\n between paragraphs."
@@ -183,28 +190,36 @@ class GhostwriterAgent:
         company = lead.get("company", "Unknown")
         role = lead.get("role", "Unknown")
 
-        # Clean first name
-        raw_first = name.split()[0] if name else "there"
-        first_name = "".join(c for c in raw_first if c.isalpha()) or "there"
+        # Clean first name and company name
+        first_name = clean_first_name(name)
+        clean_comp = clean_company_name(company)
 
-        # Cohort-specific opening logic
+        # Cohort-specific opening logic with varied, high-agency hook options
         is_bt = self.is_big_tech(lead)
         if is_bt:
             cohort_p1_inst = (
-                f"- State: \"I've been following {company}'s work in [mention specific product area or team from their headline/experience], "
+                f"- For the hook opener, choose naturally between:\n"
+                f"  Option 1: \"I've been following {clean_comp}'s work in [mention specific product area or team from their headline/experience], "
                 f"but I am actually curious about [mention a specific operational or product trade-off in their area] "
-                f"and what you guys are doing to handle this.\""
+                f"and what you guys are doing to handle this.\"\n"
+                f"  Option 2: \"I've been tracking what your team at {clean_comp} is building around [specific product area], "
+                f"and I'm really curious about how you balance [specific operational trade-off or challenge] at that scale.\""
             )
         else:
             cohort_p1_inst = (
-                f"- State: \"{company} has huge potential, but I am actually curious about [mention a specific, real operational pain point or challenge in their product/domain] "
-                f"and what you guys are doing to handle this.\""
+                f"- For the hook opener, choose naturally among these 3 high-agency opening styles (DO NOT always use the same formula across leads):\n"
+                f"  Style A (Potential & Curiosity): \"{clean_comp} has huge potential, but I am actually curious about [mention a specific, real operational pain point or challenge in their product/domain] "
+                f"and what you guys are doing to handle this.\"\n"
+                f"  Style B (Product Observation & Approach): \"I've been closely tracking what {clean_comp} is building, and I'm really curious about how your team approaches [mention a specific, real operational pain point or challenge in their product/domain] "
+                f"and how you guys are tackling that.\"\n"
+                f"  Style C (Execution Bottleneck): \"What {clean_comp} is building is super exciting, but one operational hurdle that stands out is [mention a specific, real operational pain point or challenge in their product/domain]—how is your team currently handling this?\""
             )
 
         prompt = DEEP_DIVE_RESEARCH_PROMPT.format(
             lead_name=name,
             first_name=first_name,
             lead_company=company,
+            clean_company=clean_comp,
             lead_role=role,
             top_card_text=top_card_text.strip() if top_card_text else "Not available",
             scraped_experience=scraped_experience.strip() if scraped_experience else "Not available",
@@ -225,14 +240,23 @@ class GhostwriterAgent:
                 data = json.loads(resp_text.strip())
         except Exception as e:
             console.print(f"  [yellow]  ⚠ Gemini drafting error for {name}: {e}. Using grounded fallback.[/yellow]")
+            # Deterministic opener rotation based on name hash
+            h = abs(hash(name)) % 3
+            if h == 0:
+                p1_opener = f"{clean_comp} has huge potential, but I am actually curious about automating outbound pipeline and user activation and what you guys are doing to handle this."
+            elif h == 1:
+                p1_opener = f"I've been closely tracking what {clean_comp} is building, and I'm really curious about how your team approaches scaling outbound pipelines and activation loops."
+            else:
+                p1_opener = f"What {clean_comp} is building is super exciting, but one operational hurdle that stands out is automating outbound pipeline and user activation—how is your team currently handling this?"
+
             data = {
-                "company_analysis": f"{company} platform operations.",
+                "company_analysis": f"{clean_comp} platform operations.",
                 "identified_pain_point": "Scaling automated outbound pipeline and user activation",
                 "grounded_vision": "streamline operational efficiency and user growth",
                 "drafted_dm": (
                     f"Hi {first_name},\n\n"
-                    f"{company} has huge potential, but I am actually curious about automating outbound pipeline and user activation and what you guys are doing to handle this. "
-                    f"See, {company} has the potential to streamline operational efficiency and user growth, and getting this right could really accelerate product adoption.\n\n"
+                    f"{p1_opener} "
+                    f"See, {clean_comp} has the potential to streamline operational efficiency and user growth, and getting this right could really accelerate product adoption.\n\n"
                     f"I can actually help you guys achieve this. I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, "
                     f"where I worked cross-functionally across engineering, product, and sales to build automated B2B engines capturing 25+ extra qualified leads a month, "
                     f"and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. "

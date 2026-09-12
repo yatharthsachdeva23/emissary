@@ -40,6 +40,7 @@ from utils.safety import (
     random_scroll_params,
 )
 from utils.notifier import notify_abort, notify_done, notify_session_expired
+from utils.text_cleaner import clean_first_name
 
 load_dotenv()
 console = Console()
@@ -805,7 +806,8 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
 
             # ── SAFETY NET: Name Verification ────────────────────────────────
             if send_blank_btn:
-                first_name = name.split()[0].lower() if name else ""
+                first_name = clean_first_name(name).lower() if name else ""
+                raw_first = name.split()[0].lower() if name else ""
                 name_verified = False
                 dialog_text = ""
                 for dialog_sel in [
@@ -823,7 +825,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                     except Exception:
                         continue
 
-                if dialog_text and first_name and first_name in dialog_text:
+                if dialog_text and ((first_name and first_name in dialog_text) or (raw_first and raw_first in dialog_text)):
                     name_verified = True
                 elif not dialog_text:
                     name_verified = True
