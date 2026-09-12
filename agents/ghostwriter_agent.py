@@ -29,49 +29,8 @@ LEADS_PATH = DATA_DIR / "leads_today.json"
 INSTRUCTIONS_PATH = DATA_DIR / "prompt_instructions.json"
 MAX_NOTE_LENGTH = 280
 
-# ── Big Tech Bulk Prompt ───────────────────────────────────────────────────────
-BIG_TECH_BULK_PROMPT = """You are the personalized messaging drafting engine for "Emissary," built by Yatharth.
-Yatharth is a 4th-year student at Delhi Technological University (DTU, 9.3 CGPA) and former AI PM Intern at NoBrokerHood. He specializes in Product Management, B2B sales automation, search algorithm optimization, and product strategy.
-
-ABOUT YATHARTH'S BACKGROUND:
-- College: 4th-year student at Delhi Technological University (DTU), Information Technology, 9.3 CGPA.
-- Past Experience: AI Product Management Intern at NoBrokerHood.
-- Key Outcomes: Built automated B2B sales engines capturing 25+ extra qualified leads/month, optimized search algorithms to deliver 1.5x output coverage within identical credit constraints, and developed automated research intelligence products.
-- Hackathon: Ranked 4th in NMG Labs' Agentic AI Hackathon.
-- Live Demo: This outreach was researched, targeted, and delivered autonomously by a system built by Yatharth.
-
-YOUR TASK:
-For EACH lead, write a personalized, authentic, builder-to-builder direct message (drafted_dm).
-
-CRITICAL TONE:
-- DO NOT sound like a salesperson, cold-caller, or recruiter. NO sales pitch, NO corporate fluff, NO "imagine if" or "what if".
-- Sound like a smart, curious fellow product builder reaching out directly to another product leader.
-
-STRUCTURE:
-Paragraph 1:
-- "Hi [First Name],"
-- Compliment their specific product work or team focus, mention a specific trade-off or challenge in their area, and ask what they are doing to handle this.
-- Describe the potential to streamline or scale this outcome without using words like "imagine" or "what if".
-
-Paragraph 2:
-- "I can actually help you guys achieve this." Followed by Yatharth's credentials (DTU 9.3 CGPA, NoBrokerHood 25+ extra leads/mo, 1.5x search optimization, 4th rank Agentic AI Hackathon, and live automation proof).
-
-Paragraph 3:
-- "Let's do a quick 12-min call where we can discuss this and see how it matches both of us. You can check my resume and get a quick brief about me here: {resume_link}\\n\\nLet me know a good time for us to do a meet!"
-
-HERE ARE {count} LEADS TO DRAFT FOR:
-{leads_payload}
-
-Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
-[
-  {{
-    "name": "Lead Name",
-    "drafted_dm": "Hi [First Name],\\n\\n...\\n\\nI can actually help you guys achieve this. I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I built automated B2B engines that captured 25+ extra qualified leads a month, and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. In fact, this message was researched and delivered by an autonomous system I built to test product execution live.\\n\\nLet's do a quick 12-min call where we can discuss this and see how it matches both of us. You can check my resume and get a quick brief about me here: {resume_link}\\n\\nLet me know a good time for us to do a meet!"
-  }}
-]"""
-
-# ── Startup/Medium Bulk Prompt ────────────────────────────────────────────────
-STARTUP_BULK_PROMPT = """You are the personalized messaging drafting engine for "Emissary," built by Yatharth.
+# ── Deep-Dive 1-by-1 Intelligence & DM Drafting Prompt ───────────────────────
+DEEP_DIVE_RESEARCH_PROMPT = """You are the personalized messaging drafting engine for "Emissary," built by Yatharth.
 Yatharth is a 4th-year student at Delhi Technological University (DTU, 9.3 CGPA) and former AI PM Intern at NoBrokerHood. He specializes in Product Management, B2B sales automation, search algorithm optimization, and product strategy.
 
 ABOUT YATHARTH'S BACKGROUND & ACHIEVEMENTS:
@@ -84,51 +43,85 @@ ABOUT YATHARTH'S BACKGROUND & ACHIEVEMENTS:
 - Hackathon: Ranked 4th in NMG Labs' Agentic AI Hackathon.
 - Live Proof: This very message interaction was researched, targeted, and delivered autonomously by a system built by Yatharth.
 
-YOUR TASK:
-For EACH lead in the provided JSON array, write a personalized, highly authentic, builder-to-builder direct message (drafted_dm).
+TARGET LEAD INFORMATION (VERIFIED LIVE FROM LINKEDIN):
+- Name: {lead_name}
+- Verified Current Company: {lead_company}
+- Verified Current Role/Title: {lead_role}
+- LinkedIn Top Card / Headline:
+\"\"\"
+{top_card_text}
+\"\"\"
+- Scraped Live Experience Section:
+\"\"\"
+{scraped_experience}
+\"\"\"
 
-CRITICAL TONE & PHILOSOPHY:
-- DO NOT sound like a salesperson, a cold-caller, or a recruiter. Absolutely NO aggressive sales pitching, NO canned templates, NO buzzword fluff ("imagine if", "what if", "synergy", "paradigm").
-- Sound like a smart, curious fellow product builder reaching out genuinely to another founder or product leader.
-- The tone is peer-to-peer, humble yet deeply confident, observant, and conversational.
+YOUR DEEP-DIVE RESEARCH & DRAFTING INSTRUCTIONS:
+Execute this in four rigorous steps:
 
-STRUCTURE OF THE MESSAGE (3 natural paragraphs):
+STEP 1: COMPANY & PRODUCT DECONSTRUCTION
+Analyze what {lead_company} actually does. Identify their core platform/offering, target users (B2B, B2C, Enterprise, etc.), and their primary business model.
+(Produce a crisp 1-2 sentence breakdown for the company_analysis field).
+
+STEP 2: OPERATIONAL BOTTLENECK AUDIT (STRICT DOMAIN BOUNDARIES)
+Identify a concrete, high-friction operational, technical, or product bottleneck at {lead_company} that falls STRICTLY into one of Yatharth's core builder domains:
+1. Tech & AI Automation: Agentic workflows, web scrapers, data pipelines, search algorithm optimization, automating manual engineering or operations tasks.
+2. Product Management: User activation drop-offs, onboarding friction, feature discovery loops, product-led growth mechanics, sprint execution velocity.
+3. B2B Sales & Growth Funnels: Outbound pipeline generation engines, automated lead qualification, reducing SDR prospecting grind, lead enrichment workflows.
+4. Growth Marketing: Product-led acquisition loops, conversion funnel leakages, algorithmic targeting.
+
+STRICT EXCLUSIONS - DO NOT PROPOSE OR MENTION:
+Financing, fundraising, accounting, legal/compliance, human resources (HR), or cloud infrastructure/DevOps.
+
+STEP 3: GROUNDED OUTCOME FORMULATION
+Frame a realistic, tangible operational outcome without using hype words like "imagine", "what if", "synergy", "game-changer", or "paradigm". Focus on concrete efficiency, pipeline scale, or user throughput.
+
+STEP 4: 3-PARAGRAPH DIRECT MESSAGE GENERATION
+Write an authentic, builder-to-builder direct message (drafted_dm) structured exactly as follows:
 
 Paragraph 1: Genuine Curiosity & Grounded Vision
-- Open with: "Hi [First Name],"
-- State that their company has huge potential: "[Company Name] has huge potential, but I am actually curious about [mention a specific, real operational pain point or challenge in their product/domain] and what you guys are doing to handle this."
-- Then ground the vision naturally without using words like "imagine" or "what if": "See, [Company Name] has the potential to [paint a concrete, exciting picture of scaling, user growth, or operational efficiency in their domain], and getting this right could really [tangible business/product outcome]."
+- Open with: "Hi {first_name},"
+{cohort_p1_instruction}
+- Then ground the vision naturally: "See, {lead_company} has the potential to [concrete outcome in their domain], and getting this right could really [tangible product/business benefit]."
 
 Paragraph 2: The Solution & Concrete Proof
 - Natural transition: "I can actually help you guys achieve this."
 - Present Yatharth's credibility naturally to back up the claim: "I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I worked cross-functionally across engineering, product, and sales to build automated B2B engines capturing 25+ extra qualified leads a month, and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. In fact, this message was researched and delivered by an autonomous system I built to test product execution live."
 
 Paragraph 3: The 12-Min Chat & Brief Check
-- Friendly, low-friction ask: "Let's do a quick 12-min call where we can discuss this and see how it matches both of us."
-- Share resume for brief: "You can check my resume and get a quick brief about me here: {resume_link}"
-- Close with: "Let me know a good time for us to do a meet!"
+- Friendly, low-friction ask: "Let's do a quick 12-min call where we can discuss this and see how it matches both of us. You can check my resume and get a quick brief about me here: {resume_link}\\n\\nLet me know a good time for us to do a meet!"
 
 CRITICAL RULES:
-- Separate the paragraphs with \n\n in the JSON string.
-- Address the person by their first name: "Hi [First Name],".
-- NEVER use words like: "imagine", "what if", "pleasure", "honored", "aspiring", "hope", "delve", "apologize", "sincerely", "opportunity", "passionate".
+- Separate the 3 paragraphs with \\n\\n in the JSON string.
+- Address the person by their first name: "Hi {first_name},".
+- STRICTEST RULE - DO NOT MENTION PREVIOUS COMPANIES: If the lead recently changed companies or has older jobs in their experience timeline, you must NEVER mention, reference, or hint at their previous company. Treat them purely as a leader at {lead_company}.
+- NEVER use words like: "imagine", "what if", "pleasure", "honored", "aspiring", "hope", "delve", "apologize", "sincerely", "opportunity", "passionate", "revolutionize", "synergy".
 - Keep length around 120-140 words. Easy to read, authentic, and impactful.
 
-HERE ARE {count} LEADS TO DRAFT FOR:
-{leads_payload}
-
-Return ONLY a valid JSON array enclosed in ```json ... ``` tags:
-[
-  {{
-    "name": "Lead Name",
-    "drafted_dm": "Hi [First Name],\n\n[Company Name] has huge potential, but I am actually curious about [pain point] and what you guys are doing to handle this. See, [Company Name] has the potential to [grounded vision], and getting this right could really [outcome].\n\nI can actually help you guys achieve this. I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I worked cross-functionally across engineering, product, and sales to build automated B2B engines capturing 25+ extra qualified leads a month, and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. In fact, this message was researched and delivered by an autonomous system I built to test product execution live.\n\nLet's do a quick 12-min call where we can discuss this and see how it matches both of us. You can check my resume and get a quick brief about me here: {resume_link}\n\nLet me know a good time for us to do a meet!"
-  }}
-]"""
+Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
+{{
+  "company_analysis": "Crisp 1-2 sentence breakdown of what {lead_company} builds and their market.",
+  "identified_pain_point": "The specific bottleneck identified in Tech/AI, PM, Sales Funnels, or Growth Marketing.",
+  "grounded_vision": "Concrete picture of scale/efficiency.",
+  "drafted_dm": "The complete 3-paragraph direct message formatted with \\n\\n between paragraphs."
+}}
+"""
 
 
 class GhostwriterAgent:
     def __init__(self):
-        self.resume_link = os.getenv("RESUME_LINK", "[ADD_YOUR_RESUME_LINK_HERE]")
+        self.resume_link = os.getenv("RESUME_LINK", "").strip()
+        if not self.resume_link or self.resume_link == "[ADD_YOUR_RESUME_LINK_HERE]":
+            profile_path = DATA_DIR / "my_profile.json"
+            if profile_path.exists():
+                try:
+                    with open(profile_path, "r", encoding="utf-8") as f:
+                        prof = json.load(f)
+                        self.resume_link = prof.get("resume_link", "").strip()
+                except Exception:
+                    pass
+        if not self.resume_link:
+            self.resume_link = "https://drive.google.com/drive/folders/14NkmTzo2gvSRtooHocBblueGXDqvQWFq"
 
     def _load_instructions(self) -> dict:
         if INSTRUCTIONS_PATH.exists():
@@ -174,31 +167,105 @@ class GhostwriterAgent:
             return True
         return False
 
-    def _call_gemini_for_cohort(self, prompt: str, cohort_name: str, max_retries_per_key: int = 3) -> list:
-        """Calls Gemini API with automatic round-robin rotation on any errors."""
-        drafted = []
-        with Progress(SpinnerColumn(), TextColumn(f"Gemini bulk drafting ({cohort_name})..."), console=console) as p:
-            p.add_task("", total=None)
-            try:
-                from utils.gemini_client import generate_with_rotation
-                model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
-                resp_text = generate_with_rotation(prompt, model=model_name)
-                drafted = self._extract_json(resp_text) or []
-                return drafted
-            except Exception as e:
-                console.print(f"\n[red]❌ Gemini API failed for cohort '{cohort_name}': {e}[/red]")
-                return []
-        return drafted
+    def draft_single_lead(
+        self,
+        lead: dict,
+        profile: Optional[dict] = None,
+        top_card_text: str = "",
+        scraped_experience: str = ""
+    ) -> dict:
+        """
+        Dedicated 1-by-1 deep-dive company analysis & DM drafting for a verified lead.
+        Runs Gemini with model cascade and rotation.
+        Returns a dict containing 'company_analysis', 'identified_pain_point', 'grounded_vision', and 'drafted_dm'.
+        """
+        name = lead.get("name", "Unknown")
+        company = lead.get("company", "Unknown")
+        role = lead.get("role", "Unknown")
+
+        # Clean first name
+        raw_first = name.split()[0] if name else "there"
+        first_name = "".join(c for c in raw_first if c.isalpha()) or "there"
+
+        # Cohort-specific opening logic
+        is_bt = self.is_big_tech(lead)
+        if is_bt:
+            cohort_p1_inst = (
+                f"- State: \"I've been following {company}'s work in [mention specific product area or team from their headline/experience], "
+                f"but I am actually curious about [mention a specific operational or product trade-off in their area] "
+                f"and what you guys are doing to handle this.\""
+            )
+        else:
+            cohort_p1_inst = (
+                f"- State: \"{company} has huge potential, but I am actually curious about [mention a specific, real operational pain point or challenge in their product/domain] "
+                f"and what you guys are doing to handle this.\""
+            )
+
+        prompt = DEEP_DIVE_RESEARCH_PROMPT.format(
+            lead_name=name,
+            first_name=first_name,
+            lead_company=company,
+            lead_role=role,
+            top_card_text=top_card_text.strip() if top_card_text else "Not available",
+            scraped_experience=scraped_experience.strip() if scraped_experience else "Not available",
+            cohort_p1_instruction=cohort_p1_inst,
+            resume_link=self.resume_link,
+        )
+
+        data = {}
+        try:
+            from utils.gemini_client import generate_with_rotation
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+            resp_text = generate_with_rotation(prompt, model=model_name)
+
+            match = re.search(r"```json\s*([\s\S]+?)\s*```", resp_text)
+            if match:
+                data = json.loads(match.group(1))
+            else:
+                data = json.loads(resp_text.strip())
+        except Exception as e:
+            console.print(f"  [yellow]  ⚠ Gemini drafting error for {name}: {e}. Using grounded fallback.[/yellow]")
+            data = {
+                "company_analysis": f"{company} platform operations.",
+                "identified_pain_point": "Scaling automated outbound pipeline and user activation",
+                "grounded_vision": "streamline operational efficiency and user growth",
+                "drafted_dm": (
+                    f"Hi {first_name},\n\n"
+                    f"{company} has huge potential, but I am actually curious about automating outbound pipeline and user activation and what you guys are doing to handle this. "
+                    f"See, {company} has the potential to streamline operational efficiency and user growth, and getting this right could really accelerate product adoption.\n\n"
+                    f"I can actually help you guys achieve this. I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, "
+                    f"where I worked cross-functionally across engineering, product, and sales to build automated B2B engines capturing 25+ extra qualified leads a month, "
+                    f"and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. "
+                    f"In fact, this message was researched and delivered by an autonomous system I built to test product execution live.\n\n"
+                    f"Let's do a quick 12-min call where we can discuss this and see how it matches both of us. You can check my resume and get a quick brief about me here: {self.resume_link}\n\n"
+                    f"Let me know a good time for us to do a meet!"
+                )
+            }
+
+        # Deterministic enforcement: replace any hallucinated or typo'd Google Drive folder URL with exact verified resume_link
+        dm = data.get("drafted_dm", "")
+        if self.resume_link and self.resume_link != "[ADD_YOUR_RESUME_LINK_HERE]":
+            dm = re.sub(r'https?://drive\.google\.com/drive/folders/[a-zA-Z0-9_-]+', self.resume_link, dm)
+            data["drafted_dm"] = dm
+
+        lead["connection_note"] = ""
+        lead["note_length"] = 0
+        lead["drafted_dm"] = dm
+        lead["company_analysis"] = data.get("company_analysis", "")
+        lead["identified_pain_point"] = data.get("identified_pain_point", "")
+        lead["grounded_vision"] = data.get("grounded_vision", "")
+
+        return data
 
     def run(self, leads: list, profile: dict, dry_run: bool = False) -> list:
-        console.print("\n[bold cyan]━━━ Phase 2: Ghostwriter (Bulk Processing) ━━━[/bold cyan]")
+        console.print("\n[bold cyan]━━━ Phase 2: Ghostwriter (1-by-1 Deep Dive) ━━━[/bold cyan]")
         instructions = self._load_instructions()
         console.print(f"[cyan]Prompt instructions v{instructions.get('version', 1)}[/cyan]")
 
         if not leads:
             return []
 
-        # Check for leads that already have a drafted DM (from a previous partial run or cache)
+        # Check for leads that already have a drafted DM
         already_drafted = [l for l in leads if l.get("drafted_dm")]
         needs_drafting = [l for l in leads if not l.get("drafted_dm")]
 
@@ -207,50 +274,13 @@ class GhostwriterAgent:
             return leads
 
         if already_drafted:
-            console.print(f"[cyan]ℹ {len(already_drafted)}/{len(leads)} leads already have drafted DMs. Drafting remaining {len(needs_drafting)} leads...[/cyan]")
-
-        # Split ONLY leads needing drafting into Big Tech vs. Startup/Medium companies
-        big_tech_leads = [l for l in needs_drafting if self.is_big_tech(l)]
-        startup_leads = [l for l in needs_drafting if not self.is_big_tech(l)]
-
-        drafted = []
-
-        # Process Big Tech Cohort
-        if big_tech_leads:
-            console.print(f"[cyan]Processing {len(big_tech_leads)} Big Tech leads...[/cyan]")
-            leads_payload_bt = json.dumps(big_tech_leads, indent=2)
-            prompt_bt = BIG_TECH_BULK_PROMPT.format(
-                my_profile_json=json.dumps(profile, indent=2),
-                count=len(big_tech_leads),
-                leads_payload=leads_payload_bt,
-                resume_link=self.resume_link,
-            )
-            drafted_bt = self._call_gemini_for_cohort(prompt_bt, "Big Tech")
-            drafted.extend(drafted_bt)
-
-        # Process Startup Cohort
-        if startup_leads:
-            console.print(f"[cyan]Processing {len(startup_leads)} Startup / Medium leads...[/cyan]")
-            leads_payload_su = json.dumps(startup_leads, indent=2)
-            prompt_su = STARTUP_BULK_PROMPT.format(
-                count=len(startup_leads),
-                leads_payload=leads_payload_su,
-                resume_link=self.resume_link,
-            )
-            drafted_su = self._call_gemini_for_cohort(prompt_su, "Startup/Medium")
-            drafted.extend(drafted_su)
-
-
-        # Build lookup map: name -> {drafted_dm}
-        dm_map = {}
-        for item in drafted:
-            if isinstance(item, dict) and item.get("name"):
-                dm_map[item["name"]] = item
+            console.print(f"[cyan]ℹ {len(already_drafted)}/{len(leads)} leads already have drafted DMs. Drafting remaining {len(needs_drafting)} leads 1-by-1...[/cyan]")
+        else:
+            console.print(f"[cyan]Drafting {len(needs_drafting)} leads 1-by-1 with deep-dive company & bottleneck audit...[/cyan]")
 
         enriched = []
-        for lead in leads:
-            name = lead.get("name") or ""
-            # If lead already had a drafted DM, keep it intact
+        for idx, lead in enumerate(leads, 1):
+            name = lead.get("name") or "Unknown"
             if lead.get("drafted_dm"):
                 lead.setdefault("connection_note", "")
                 lead.setdefault("note_length", 0)
@@ -258,36 +288,22 @@ class GhostwriterAgent:
                 enriched.append(lead)
                 continue
 
-            # Fuzzy match: try exact first, then substring
-            matched = dm_map.get(name)
-            if not matched and name:
-                for key, val in dm_map.items():
-                    if not key:
-                        continue
-                    if key.lower() in name.lower() or name.lower() in key.lower():
-                        matched = val
-                        break
+            console.print(f"  [{idx}/{len(leads)}] [cyan]▶ Deep-dive research for {name} @ {lead.get('company', '?')}...[/cyan]")
+            self.draft_single_lead(lead, profile)
+            pain_point = lead.get("identified_pain_point") or "Operational growth"
+            console.print(f"  [green]  ✓ DM drafted targeting: {pain_point}[/green]")
 
-            if matched:
-                dm = matched.get("drafted_dm", "")
-                # Deterministic enforcement: replace any hallucinated or typo'd Google Drive folder URL with exact verified resume_link
-                if self.resume_link and self.resume_link != "[ADD_YOUR_RESUME_LINK_HERE]":
-                    dm = re.sub(r'https?://drive\.google\.com/drive/folders/[a-zA-Z0-9_-]+', self.resume_link, dm)
+            lead["status"] = "queued"
+            enriched.append(lead)
 
-                lead["connection_note"] = ""
-                lead["note_length"] = 0
-                lead["drafted_dm"] = dm
-                lead["status"] = "queued"
-                enriched.append(lead)
-
-                if dry_run:
-                    console.print(Panel(
-                        f"[bold]{name}[/bold] @ {lead.get('company', '?')}\n\n"
-                        f"[bold yellow]DM:[/bold yellow]\n[green]{dm}[/green]",
-                        title=f"Draft #{len(enriched)}", border_style="blue",
-                    ))
-            else:
-                console.print(f"[yellow]  ⚠ No draft generated for {name} — skipping[/yellow]")
+            if dry_run:
+                console.print(Panel(
+                    f"[bold]{name}[/bold] @ {lead.get('company', '?')}\n\n"
+                    f"[bold yellow]Identified Bottleneck:[/bold yellow] {lead.get('identified_pain_point')}\n"
+                    f"[bold yellow]Company Analysis:[/bold yellow] {lead.get('company_analysis')}\n\n"
+                    f"[bold yellow]DM:[/bold yellow]\n[green]{lead.get('drafted_dm')}[/green]",
+                    title=f"Draft #{len(enriched)}", border_style="blue",
+                ))
 
         console.print(f"[green]✓ Drafted {len(enriched)}/{len(leads)} DMs[/green]")
 

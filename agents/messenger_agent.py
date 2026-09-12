@@ -432,11 +432,10 @@ class MessengerAgent:
             console.print(f"  [yellow]  ⚠ Pre-criteria check error: {e}. Proceeding anyway (failsafe).[/yellow]")
             return True
 
-    def _verify_experience_and_draft(self, page, lead: dict, profile: Optional[dict] = None, ghost_run: bool = False) -> dict:
+    def _verify_experience(self, page, lead: dict, profile: Optional[dict] = None) -> dict:
         """
-        Locate Top Card and Experience section, extract text, verify active company with Gemini,
-        and dynamically re-draft the cold outreach message if a company change is detected.
-        Enforces strict rule: NEVER mention the previous search company in the new message.
+        Locate Top Card and Experience section, extract text, and verify active company with Gemini.
+        Returns resolved current company, role, relevance, and scraped profile snippets.
         """
         name = lead.get("name", "Unknown")
         target_company = lead.get("company", "Unknown")
@@ -485,19 +484,16 @@ class MessengerAgent:
                 "reason": "DOM unreadable (failsafe)",
                 "current_company": target_company,
                 "current_position": target_role,
-                "drafted_dm": lead.get("drafted_dm", ""),
-                "drafted_note": lead.get("connection_note", "")
+                "top_card_text": "",
+                "scraped_experience": ""
             }
 
-        # 3. Call Gemini with Rotation to Verify Experience and Draft if Changed
+        # 3. Call Gemini with Rotation to Verify Experience
         try:
             from utils.gemini_client import generate_with_rotation
-            from agents.ghostwriter_agent import GhostwriterAgent
-            writer = GhostwriterAgent()
-            resume_link = writer.resume_link
 
-            verification_prompt = f"""You are a professional profile verification and personalization engine for Yatharth's outreach system.
-Yatharth is a 4th-year student at Delhi Technological University (DTU, 9.3 CGPA) and former AI PM Intern at NoBrokerHood, seeking a 2-month PM/APM intern role at high-growth startups or tech companies.
+            verification_prompt = f"""You are a professional profile verification engine for Yatharth's outreach system.
+Yatharth is a 4th-year student at Delhi Technological University (DTU, 9.3 CGPA) and former AI PM Intern at NoBrokerHood, seeking a PM/APM intern role at high-growth startups or tech companies.
 
 TARGET LEAD DETAILS FROM SEARCH:
 - Name: {name}
@@ -528,22 +524,11 @@ YOUR TASKS:
      - is_relevant: true
      - current_company: "{target_company}"
      - current_position: resolved position
-     - drafted_dm: null
-     - drafted_note: null
    - If DIFFERENT company (they transitioned to a new company):
      - is_same_company: false
      - Check if they are currently actively employed at a real company. If they are unemployed, student only, "seeking opportunities", or have no active company, set is_relevant = false.
      - If they are at a new company, set is_relevant = true.
      - Extract current_company and current_position.
-     - DRAFT A FRESH COLD MESSAGE (drafted_dm) and connection hook (drafted_note) FOR THIS NEW COMPANY!
-
-CRITICAL MESSAGE DRAFTING RULES FOR NEW COMPANY:
-- TONE: Authentically builder-to-builder, smart, humble, peer-to-peer. NO sales pitch, NO fluff ("imagine if", "what if", "honored", "synergy").
-- STRICTEST USER RULE - DO NOT MENTION PREVIOUS COMPANY: You must NEVER mention, cite, or hint at their previous company ("{target_company}"). Do NOT say "I saw you were at {target_company}" or "Congrats on moving from {target_company}". Address them exclusively and directly as a leader at their NEW current company.
-- MESSAGE STRUCTURE (3 paragraphs):
-  Paragraph 1: "Hi [First Name],\n\n[New Company] has huge potential, but I am actually curious about [specific operational/product challenge in their new domain] and what you guys are doing to handle this. See, [New Company] has the potential to [grounded vision of scale/efficiency in their domain], and getting this right could really [tangible business/product outcome]."
-  Paragraph 2: "I can actually help you guys achieve this. I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I worked cross-functionally across engineering, product, and sales to build automated B2B engines capturing 25+ extra qualified leads a month, and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. In fact, this message was researched and delivered by an autonomous system I built to test product execution live."
-  Paragraph 3: "Let's do a quick 12-min call where we can discuss this and see how it matches both of us. You can check my resume and get a quick brief about me here: {resume_link}\n\nLet me know a good time for us to do a meet!"
 
 Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
 {{
@@ -551,9 +536,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
   "is_relevant": true/false,
   "reason": "Brief explanation of date and company determination",
   "current_company": "Resolved current company name",
-  "current_position": "Resolved current job title/position",
-  "drafted_note": "A 280-char connection hook or null if same company",
-  "drafted_dm": "The drafted 3-paragraph direct message for the new company or null if same company"
+  "current_position": "Resolved current job title/position"
 }}
 """
             resp_text = generate_with_rotation(verification_prompt)
@@ -570,7 +553,11 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                 res_data["is_same_company"] = True
                 res_data["is_relevant"] = True
                 res_data["current_company"] = target_company
+            else:
+                res_data["current_company"] = res_company or target_company
 
+            res_data["top_card_text"] = top_card_text
+            res_data["scraped_experience"] = scraped_experience
             return res_data
 
         except Exception as e:
@@ -581,8 +568,8 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                 "reason": f"Verification error: {e}",
                 "current_company": target_company,
                 "current_position": target_role,
-                "drafted_dm": lead.get("drafted_dm", ""),
-                "drafted_note": lead.get("connection_note", "")
+                "top_card_text": top_card_text,
+                "scraped_experience": scraped_experience
             }
 
 
@@ -1132,7 +1119,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                             continue
 
                         # ── Experience Check & Dynamic Company Verification ──
-                        verification = self._verify_experience_and_draft(page, lead, profile=profile, ghost_run=ghost_run)
+                        verification = self._verify_experience(page, lead, profile=profile)
 
                         is_relevant = verification.get("is_relevant", True)
                         if not is_relevant:
@@ -1155,42 +1142,21 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                             continue
 
                         is_same_company = verification.get("is_same_company", True)
-                        new_company = (verification.get("current_company") or "").strip() or company
-                        new_position = (verification.get("current_position") or "").strip() or lead.get("role", "Unknown")
+                        verified_company = (verification.get("current_company") or "").strip() or company
+                        verified_position = (verification.get("current_position") or "").strip() or lead.get("role", "Unknown")
 
                         from utils.safety import is_same_company_name
-                        if not is_same_company and not is_same_company_name(company, new_company):
-                            console.print(f"  [yellow]  ⚠ Company changed for {name}! [dim]Search Lead: '{company}' → Real Experience: '{new_company}' ({new_position})[/dim][/yellow]")
+                        if not is_same_company and not is_same_company_name(company, verified_company):
+                            console.print(f"  [yellow]  ⚠ Company changed for {name}! [dim]Search Lead: '{company}' → Real Experience: '{verified_company}' ({verified_position})[/dim][/yellow]")
 
-                            # Update in-memory lead data so downstream steps and log_leads reflect the new company
-                            lead["company"] = new_company
-                            lead["role"] = new_position
-
-                            new_dm = verification.get("drafted_dm")
-                            new_note = verification.get("drafted_note")
-                            if new_dm:
-                                lead["drafted_dm"] = new_dm
-                                console.print(f"  [cyan]  ✓ Fresh cold message drafted for {new_company} (previous company strictly omitted).[/cyan]")
-                            if new_note:
-                                lead["connection_note"] = new_note
-
-                            # Update Google Sheet row with new company, position, and message
-                            try:
-                                from utils.sheets import SheetsClient
-                                sheets_client = SheetsClient()
-                                sheets_client.update_lead_company_and_dm(
-                                    profile_url=url,
-                                    new_company=new_company,
-                                    new_role=new_position,
-                                    new_dm=lead.get("drafted_dm", ""),
-                                    new_note=lead.get("connection_note", "")
-                                )
-                                console.print(f"  [green]  ✓ Updated Google Sheet with new company '{new_company}' and position '{new_position}'[/green]")
-                            except Exception as e_sheet:
-                                console.print(f"  [dim]  Note on sheet update: {e_sheet}[/dim]")
+                        # Update lead in memory with verified live details
+                        lead["company"] = verified_company
+                        lead["role"] = verified_position
+                        top_card_text = verification.get("top_card_text", "")
+                        scraped_experience = verification.get("scraped_experience", "")
 
                         if test_mode:
-                            console.print(f"  [cyan]  TEST: Visited profile, NOT sending.[/cyan]")
+                            console.print(f"  [cyan]  TEST: Visited profile for {name} @ {verified_company}. NOT sending.[/cyan]")
                             lead["status"] = "test_visited"
                             self.results.append(lead)
                             human_sleep(2, 4)
@@ -1201,15 +1167,47 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
 
                         if success:
                             self.sent_count += 1
-                            lead["status"] = "Blank Sent"
+                            sent_status = "Blank Sent" if not ghost_run else "ghost_sent"
+                            lead["status"] = sent_status
                             lead["sent_at"] = datetime.now().isoformat()
-                            console.print(f"  [green]  ✓ Blank request sent to {name} @ {company}![/green]")
+                            console.print(f"  [green]  ✓ Request sent to {name} @ {verified_company}![/green]")
+
+                            # ── 1-by-1 Dedicated Deep-Dive Gemini Drafting ONLY for confirmed sent leads ──
+                            try:
+                                console.print(f"  [cyan]▶ Deep-dive research & drafting DM for {name} @ {verified_company}...[/cyan]")
+                                from agents.ghostwriter_agent import GhostwriterAgent
+                                writer = GhostwriterAgent()
+                                draft_result = writer.draft_single_lead(
+                                    lead=lead,
+                                    profile=profile,
+                                    top_card_text=top_card_text,
+                                    scraped_experience=scraped_experience
+                                )
+                                lead["drafted_dm"] = draft_result.get("drafted_dm", "")
+                                lead["identified_pain_point"] = draft_result.get("identified_pain_point", "")
+                                lead["company_analysis"] = draft_result.get("company_analysis", "")
+
+                                pain_point = lead.get("identified_pain_point") or "Product & automation"
+                                console.print(f"  [green]  ✓ DM drafted targeting: {pain_point}[/green]")
+                            except Exception as e_draft:
+                                console.print(f"  [yellow]  ⚠ 1-by-1 DM drafting error for {name}: {e_draft}[/yellow]")
+
+                            # Update Google Sheet row if lead exists or was retried
                             try:
                                 from utils.sheets import SheetsClient
-                                SheetsClient().update_status(lead.get("linkedin_url", ""), "Blank Sent")
-                                mark_contacted(lead.get("linkedin_url", ""), "Blank Sent")
-                            except Exception:
-                                pass
+                                sheets_client = SheetsClient()
+                                sheets_client.update_lead_company_and_dm(
+                                    profile_url=url,
+                                    new_company=verified_company,
+                                    new_role=verified_position,
+                                    new_dm=lead.get("drafted_dm", ""),
+                                    new_note=lead.get("connection_note", "")
+                                )
+                                sheets_client.update_status(url, sent_status)
+                                mark_contacted(url, sent_status)
+                            except Exception as e_sheet:
+                                console.print(f"  [dim]  Note on sheet update: {e_sheet}[/dim]")
+
                             self.results.append(lead)
                         else:
                             if not is_retry and status not in ("already_pending", "modal_name_mismatch", "weekly_limit_reached", "email_required"):

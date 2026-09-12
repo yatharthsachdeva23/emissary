@@ -258,17 +258,6 @@ def main():
                     console.print("[yellow]Run 'py -3.12 main.py' without --resume to perform a fresh search.[/yellow]")
                     return
 
-            # Check if any leads need DMs drafted (e.g. Gemini key failed during Ghostwriter previously)
-            undrafted = [l for l in leads if not l.get("drafted_dm")]
-            if undrafted:
-                console.print(f"[yellow]▶ {len(undrafted)}/{len(leads)} leads are missing drafted DMs (e.g. Gemini key failed previously). Running Ghostwriter...[/yellow]")
-                from agents.ghostwriter_agent import GhostwriterAgent
-                writer = GhostwriterAgent()
-                leads = writer.run(leads, profile, dry_run=flags["dry_run"])
-                run_summary["notes_drafted"] = len([l for l in leads if l.get("drafted_dm")])
-            else:
-                console.print(f"[green]✓ All {len(leads)} leads already have drafted DMs. Ready for Messenger.[/green]")
-                run_summary["notes_drafted"] = len(leads)
         else:
             from agents.discovery_agent import DiscoveryAgent
             discovery = DiscoveryAgent()
@@ -280,14 +269,9 @@ def main():
                 write_run_log(run_summary)
                 return
 
-            from agents.ghostwriter_agent import GhostwriterAgent
-            writer = GhostwriterAgent()
-            leads = writer.run(leads, profile, dry_run=flags["dry_run"])
-            run_summary["notes_drafted"] = len(leads)
-
-        # ── Step 5: Messenger (Blank Requests) ─────────────────────
+        # ── Step 5: Messenger & 1-by-1 Post-Send Drafting ───────────
         if flags["skip_send"]:
-            console.print("[yellow]--skip-send: Skipping Playwright messenger.[/yellow]")
+            console.print("[yellow]--skip-send: Skipping Playwright messenger. DMs are drafted post-connection during Messenger outreach.[/yellow]")
         else:
             from agents.messenger_agent import MessengerAgent
             messenger = MessengerAgent()
@@ -309,6 +293,7 @@ def main():
             skipped = [r for r in results if r.get("status") not in ("Blank Sent", "ghost_sent", "dry_run", "test_visited")]
             run_summary["connections_sent"] = len(sent)
             run_summary["connections_skipped"] = len(skipped)
+            run_summary["notes_drafted"] = len([r for r in results if r.get("drafted_dm")])
 
             # ── Step 6: Log to Google Sheet and Mark Seen ────────────────────
             if not flags["dry_run"] and not flags["test_mode"] and not flags["ghost_run"]:
