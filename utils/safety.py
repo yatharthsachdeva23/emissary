@@ -140,12 +140,12 @@ def save_seen_profiles(seen: list) -> None:
 
 
 def mark_contacted(profile_url: str, status: str = None) -> None:
-    """Add a profile URL to the seen list incrementally, rejecting retry or blank statuses."""
+    """Add a profile URL to the seen list incrementally, rejecting retry, transient errors, or blank statuses."""
     if not profile_url:
         return
     if status:
         s_clean = str(status).strip().lower()
-        if s_clean in ("retry", ""):
+        if s_clean in ("retry", "", "connect_button_missing", "click_failed"):
             return
     seen = load_seen_profiles()
     if profile_url not in seen:
