@@ -116,6 +116,31 @@ class SheetsClient:
         self.register_failed_update(failed_update_info)
         return False
 
+    def _safe_append_row(self, row: list) -> bool:
+        """
+        Safely append a single row to the sheet with network recovery and retry mechanism.
+        """
+        import time
+        from utils.network import is_network_error, wait_for_network_recovery
+        for attempt in range(1, 4):
+            try:
+                self._sheet.append_row(row, value_input_option="USER_ENTERED")
+                return True
+            except Exception as e:
+                if is_network_error(e) and attempt < 3:
+                    console.print(f"[yellow]⚠ Network lost during Sheet append. Waiting for Wi-Fi recovery (Checking every 30s, max 10 mins)...[/yellow]")
+                    if wait_for_network_recovery(max_wait_seconds=600, check_interval_seconds=30):
+                        try:
+                            sheet_id = os.getenv("GOOGLE_SHEET_ID", "")
+                            self._sheet = self._gc.open_by_key(sheet_id).worksheet(self._sheet.title)
+                        except Exception:
+                            pass
+                        continue
+                console.print(f"[red]  ⚠ Sheet append attempt {attempt}/3 failed: {e}[/red]")
+                if attempt < 3:
+                    time.sleep(1.5)
+        return False
+
     def register_failed_update(self, info: dict) -> None:
         """Record a failed cell update to data/failed_sheet_updates.json for end-of-run reporting."""
         import json
@@ -164,13 +189,91 @@ class SheetsClient:
         except Exception:
             return []
 
+    def log_or_update_lead(self, lead: dict) -> bool:
+        """
+        Immediately log a newly sent lead to the Google Sheet in real time, or update it if it exists.
+        Ensures 100% real-time persistence so no data is lost on Ctrl-C.
+        """
+        if not self.available or not lead:
+            return False
+
+        profile_url = lead.get("linkedin_url", "").strip()
+        name = lead.get("name", "")
+        company = lead.get("company", "")
+        role = lead.get("role", "")
+        drafted_dm = lead.get("drafted_dm", "")
+        note = lead.get("connection_note", "")
+        score_val = lead.get("score", 0)
+        try:
+            score = str(round(float(score_val), 2))
+        except Exception:
+            score = str(score_val)
+        status = lead.get("status", "Blank Sent")
+
+        try:
+            cell = None
+            if profile_url:
+                try:
+                    cell = self._sheet.find(profile_url)
+                except Exception:
+                    cell = None
+
+            if cell:
+                row_idx = cell.row
+                if company:
+                    self._safe_update_cell(row_idx, COL_COMPANY + 1, company)
+                if role:
+                    self._safe_update_cell(row_idx, COL_ROLE + 1, role)
+                if drafted_dm:
+                    self._safe_update_cell(row_idx, COL_DM + 1, drafted_dm)
+                if note:
+                    self._safe_update_cell(row_idx, COL_NOTE + 1, note)
+                if status:
+                    self._safe_update_cell(row_idx, COL_STATUS + 1, status)
+                console.print(f"  [green]✓ Real-time Google Sheet updated for row {row_idx} ({name})[/green]")
+                lead["sheet_logged"] = True
+                return True
+            else:
+                row = [
+                    datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    name,
+                    company,
+                    role,
+                    profile_url,
+                    note,
+                    drafted_dm,
+                    score,
+                    status,
+                    "",
+                    "No",
+                ]
+                ok = self._safe_append_row(row)
+                if ok:
+                    console.print(f"  [green]✓ Real-time Google Sheet logged new row for {name} @ {company}[/green]")
+                    lead["sheet_logged"] = True
+                    return True
+                return False
+        except Exception as e:
+            console.print(f"  [red]Real-time sheet log/update error for {name}: {e}[/red]")
+            return False
+
     def log_leads(self, leads: list[dict]) -> int:
         """Append sent leads to the sheet. Returns number logged."""
         if not self.available:
             return 0
 
+        # Only log leads that were not already logged in real-time
+        leads_to_log = [l for l in leads if not l.get("sheet_logged")]
+        if not leads_to_log:
+            return 0
+
         rows = []
-        for lead in leads:
+        for lead in leads_to_log:
+            score_val = lead.get("score", 0)
+            try:
+                score = str(round(float(score_val), 2))
+            except Exception:
+                score = str(score_val)
             rows.append([
                 datetime.now().strftime("%Y-%m-%d %H:%M"),
                 lead.get("name", ""),
@@ -179,14 +282,16 @@ class SheetsClient:
                 lead.get("linkedin_url", ""),
                 lead.get("connection_note", ""),
                 lead.get("drafted_dm", ""),
-                str(round(lead.get("score", 0), 2)),
-                "Blank Sent",          # Status after sending blank request
-                "",                    # Your Feedback — blank for user to fill
-                "No",                  # Feedback Applied
+                score,
+                lead.get("status", "Blank Sent"),
+                "",
+                "No",
             ])
 
         try:
             self._sheet.append_rows(rows, value_input_option="USER_ENTERED")
+            for lead in leads_to_log:
+                lead["sheet_logged"] = True
             console.print(f"[green]✓ Logged {len(rows)} leads to Google Sheet[/green]")
             return len(rows)
         except Exception as e:

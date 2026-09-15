@@ -297,12 +297,13 @@ def main():
 
             # ── Step 6: Log to Google Sheet and Mark Seen ────────────────────
             if not flags["dry_run"] and not flags["test_mode"] and not flags["ghost_run"]:
-                # Log successful sends to Google Sheets
-                if sent:
+                # Log successful sends to Google Sheets (fallback for any unlogged leads)
+                unlogged_sent = [l for l in sent if not l.get("sheet_logged")]
+                if unlogged_sent:
                     try:
                         from utils.sheets import SheetsClient
                         client = SheetsClient()
-                        client.log_leads(sent)
+                        client.log_leads(unlogged_sent)
                     except Exception as e:
                         console.print(f"[yellow]Sheet logging error: {e}[/yellow]")
 

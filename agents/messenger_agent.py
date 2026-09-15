@@ -47,6 +47,7 @@ console = Console()
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 SESSION_PATH = DATA_DIR / "linkedin_session.json"
+LEADS_PATH = DATA_DIR / "leads_today.json"
 
 LINKEDIN_HOME = "https://www.linkedin.com/feed/"
 LINKEDIN_LOGIN = "https://www.linkedin.com/login"
@@ -63,6 +64,21 @@ class MessengerAgent:
         # Detected at runtime: e.g. 'https://in.linkedin.com' for Indian users
         self._linkedin_base = "https://www.linkedin.com"
         self.retry_queue = []
+
+    def _save_checkpoint(self, leads: list[dict]) -> None:
+        """Save current progress to data/leads_today.json in real time."""
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "date": datetime.now().isoformat(),
+                "count": len(leads),
+                "leads": leads,
+                "last_checkpoint": datetime.now().isoformat(),
+            }
+            with open(LEADS_PATH, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            console.print(f"  [dim]Checkpoint save warning: {e}[/dim]")
 
     def _get_playwright(self):
         """Import playwright lazily."""
@@ -690,6 +706,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         continue
 
                 # Priority 2: If not directly visible, check the single "More" actions dropdown in the top card
+                is_from_dropdown = False
                 if not connect_btn:
                     more_selectors = [
                         "button[aria-label='More actions']",
@@ -721,29 +738,42 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                                 more_btn.click(force=True)
                             except Exception:
                                 more_btn.evaluate("node => node.click()")
-                            page.wait_for_timeout(1500)
+                            page.wait_for_timeout(1200)
+
+                            dropdown_container = page.locator(
+                                ".artdeco-dropdown__content.artdeco-dropdown__content--is-open, "
+                                ".artdeco-dropdown--is-opened .artdeco-dropdown__content, "
+                                "div.artdeco-dropdown__content[aria-hidden='false'], "
+                                "div[role='menu'], "
+                                "div.artdeco-dropdown__content"
+                            ).first
 
                             dropdown_connect_selectors = [
-                                "[componentkey*='ConnectButton']",
-                                "[componentkey*='connect']",
-                                "[componentkey*='Connect']",
+                                "div[role='button']:has-text('Connect')",
                                 "div[role='menuitem']:has-text('Connect')",
                                 "button[role='menuitem']:has-text('Connect')",
                                 "a[role='menuitem']:has-text('Connect')",
-                                ".artdeco-dropdown__content div:has-text('Connect')",
-                                ".artdeco-dropdown__content button:has-text('Connect')",
-                                ".artdeco-dropdown__content a:has-text('Connect')",
+                                ".artdeco-dropdown__item:has-text('Connect')",
                                 "[aria-label*='Invite'][aria-label*='connect']",
                                 "[aria-label*='Connect with']",
-                                "div.artdeco-dropdown__item:has-text('Connect')",
+                                "[componentkey*='ConnectButton']",
+                                "[componentkey*='connect']",
+                                "[componentkey*='Connect']",
+                                "button:has-text('Connect')",
+                                "span:text-is('Connect')",
                                 "li:has-text('Connect')",
                                 "a[href*='custom-invite']",
                             ]
                             for d_sel in dropdown_connect_selectors:
                                 try:
-                                    cand = page.locator(d_sel).first
-                                    if cand.is_visible(timeout=600):
+                                    cand = None
+                                    if dropdown_container.is_visible(timeout=500):
+                                        cand = dropdown_container.locator(d_sel).first
+                                    if not cand or not cand.is_visible(timeout=300):
+                                        cand = page.locator(d_sel).first
+                                    if cand.is_visible(timeout=500):
                                         connect_btn = cand
+                                        is_from_dropdown = True
                                         break
                                 except Exception:
                                     continue
@@ -760,18 +790,29 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         return False, "connect_button_missing"
 
                 # --- 3. EXECUTE CLICK & SEND ---
-                console.print(f"  [cyan]  ✓ Found Connect button for {name}. Clicking...[/cyan]")
+                origin_desc = "More actions dropdown" if is_from_dropdown else "Top Card"
+                console.print(f"  [cyan]  ✓ Found Connect button for {name} ({origin_desc}). Clicking...[/cyan]")
 
-                connect_btn.scroll_into_view_if_needed()
-                page.evaluate("window.scrollBy(0, -150)")
-                page.wait_for_timeout(500)
+                # CRITICAL FIX: Only scroll window if button is directly on top card!
+                # NEVER scroll window if button is inside an open dropdown, because window scrolling
+                # immediately dismisses/closes the Artdeco dropdown menu before click can register!
+                if not is_from_dropdown:
+                    connect_btn.scroll_into_view_if_needed()
+                    page.evaluate("window.scrollBy(0, -150)")
+                    page.wait_for_timeout(400)
 
                 url_before_click = page.url
                 try:
-                    connect_btn.click(force=True)
+                    connect_btn.click(timeout=2500)
                 except Exception:
-                    connect_btn.evaluate("node => node.click()")
-                page.wait_for_timeout(2500)
+                    # Fallback: dispatch full mouse event cycle directly to element
+                    connect_btn.evaluate("""(node) => {
+                        node.focus();
+                        ['mousedown', 'mouseup', 'click'].forEach(evt => {
+                            node.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+                        });
+                    }""")
+                page.wait_for_timeout(2000)
 
                 if "custom-invite" in page.url or page.url != url_before_click:
                     try:
@@ -780,39 +821,44 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         pass
                     page.wait_for_timeout(1500)
 
-                send_blank_btn = None
-                send_blank_selectors = [
-                    "div[role='dialog'] button[aria-label='Send without a note']",
-                    "div[role='dialog'] button:has-text('Send without a note')",
-                    "div[role='dialog'] button[aria-label='Send invitation']",
-                    "div[role='dialog'] button:has-text('Send invitation')",
-                    "button[aria-label='Send without a note']",
-                    "button:has-text('Send without a note')",
-                    "button[aria-label='Send invitation']",
-                    "button:has-text('Send invitation')",
-                    "div[role='dialog'] button[aria-label='Send now']",
-                    "div[role='dialog'] button:has-text('Send now')",
-                    "button[aria-label='Send now']",
-                    "button:has-text('Send now')",
-                    "div[role='dialog'] button:has-text('Send')",
-                    "button:has-text('Send')",
-                ]
-
-                page.wait_for_timeout(1000)
-
-                for sel in send_blank_selectors:
+                # Look for the connection modal
+                modal_loc = None
+                for m_sel in ["div[role='dialog']", ".artdeco-modal", "[data-test-modal]"]:
                     try:
-                        el = page.locator(sel).first
-                        if el.is_visible(timeout=2000):
-                            send_blank_btn = el
+                        m = page.locator(m_sel).first
+                        if m.is_visible(timeout=1500):
+                            modal_loc = m
                             break
                     except Exception:
                         continue
 
+                send_blank_btn = None
+                if modal_loc:
+                    # STRICTLY search inside the open modal dialog to prevent matching "Send message" on profile
+                    send_blank_selectors = [
+                        "button[aria-label*='without a note' i]",
+                        "button:has-text('Send without a note')",
+                        "button[aria-label*='Send invitation' i]",
+                        "button:has-text('Send invitation')",
+                        "button[aria-label*='Send now' i]",
+                        "button:has-text('Send now')",
+                        "button:text-is('Send')",
+                        "button:has-text('Send')",
+                    ]
+                    for sel in send_blank_selectors:
+                        try:
+                            el = modal_loc.locator(sel).first
+                            if el.is_visible(timeout=1000):
+                                send_blank_btn = el
+                                break
+                        except Exception:
+                            continue
+
+                # If no modal opened, verify if the top card button changed to "Pending"
                 if not send_blank_btn:
                     is_pending = False
                     try:
-                        pending_loc = page.locator("button:has-text('Pending'), [aria-label*='Pending'], [aria-label*='pending'], div:has-text('Invitation sent'), div:has-text('Invite sent')").first
+                        pending_loc = search_area.locator("button:has-text('Pending'), [aria-label*='Pending' i]").first
                         if pending_loc.is_visible(timeout=1500):
                             is_pending = True
                     except Exception:
@@ -823,61 +869,9 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         human_sleep(2.0, 4.0, "After send")
                         return True, "Request Sent"
 
-                # ── SAFETY NET: Name Verification ────────────────────────────────
-                if send_blank_btn:
-                    first_name = clean_first_name(name).lower() if name else ""
-                    raw_first = name.split()[0].lower() if name else ""
-                    name_verified = False
-                    dialog_text = ""
-                    for dialog_sel in [
-                        "div[role='dialog']",
-                        "div[data-test-modal]",
-                        "[role='dialog']",
-                    ]:
-                        try:
-                            el = page.locator(dialog_sel).first
-                            if el.is_visible(timeout=1000):
-                                txt = el.inner_text().lower()
-                                if txt:
-                                    dialog_text = txt
-                                    break
-                        except Exception:
-                            continue
-
-                    if dialog_text and ((first_name and first_name in dialog_text) or (raw_first and raw_first in dialog_text)):
-                        name_verified = True
-                    elif not dialog_text:
-                        name_verified = True
-                    else:
-                        console.print(
-                            f"  [bold red]  ✘ SAFETY NET: Modal target name mismatch! Expected '{first_name}' "
-                            f"in modal text, but found: '{dialog_text[:60]}...'. ABORTING connection attempt to prevent misclick.[/bold red]"
-                        )
-                        try:
-                            page.keyboard.press("Escape")
-                            page.wait_for_timeout(1000)
-                        except Exception:
-                            pass
-                        return False, "modal_name_mismatch"
-
-                if send_blank_btn and name_verified:
-                    if ghost_run:
-                        console.print(f"  [dim]  GHOST RUN: Would have clicked '{send_blank_btn.inner_text().strip()}' for {name}[/dim]")
-                        return True, "ghost_sent"
-                    page.wait_for_timeout(1500)
-
-                    try:
-                        send_blank_btn.focus()
-                        page.wait_for_timeout(500)
-                        page.keyboard.press("Enter")
-                    except Exception:
-                        send_blank_btn.evaluate("node => node.click()")
-
-                    human_sleep(2.0, 3.5, "After send")
-                    return True, "Blank Sent"
-                else:
+                    # Neither modal nor Pending: the click did NOT send the connection!
                     if attempt == 1:
-                        console.print(f"  [yellow]  ⚠ Could not find Send button in modal on attempt 1 for {name}. Retrying once...[/yellow]")
+                        console.print(f"  [yellow]  ⚠ Connection modal did not open on attempt 1 for {name}. Retrying once...[/yellow]")
                         try:
                             page.keyboard.press("Escape")
                             page.wait_for_timeout(1000)
@@ -885,7 +879,89 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                             pass
                         continue
                     else:
-                        console.print(f"  [yellow]  ⚠ Could not find Send button in modal for {name} after retry.[/yellow]")
+                        console.print(f"  [red]  ❌ Connection failed for {name}: Modal never opened and status not Pending.[/red]")
+                        try:
+                            page.keyboard.press("Escape")
+                        except Exception:
+                            pass
+                        return False, "click_failed"
+
+                # ── SAFETY NET & LIMIT CHECK: Inside Verified Modal ───────────────
+                dialog_text = ""
+                try:
+                    dialog_text = modal_loc.inner_text().lower()
+                except Exception:
+                    pass
+
+                # Check for weekly invitation limit
+                if "weekly invitation limit" in dialog_text or "out of invitations" in dialog_text:
+                    console.print(f"  [bold red]  ❌ WEEKLY INVITATION LIMIT REACHED! Stopping outreach.[/bold red]")
+                    try:
+                        page.keyboard.press("Escape")
+                    except Exception:
+                        pass
+                    return False, "weekly_limit_reached"
+
+                # Check if email is required to connect
+                if "email" in dialog_text and ("enter" in dialog_text or "verify" in dialog_text or "know" in dialog_text):
+                    console.print(f"  [yellow]  ⚠ LinkedIn requires email to connect with {name}. Skipping.[/yellow]")
+                    try:
+                        page.keyboard.press("Escape")
+                    except Exception:
+                        pass
+                    return False, "email_required"
+
+                first_name = clean_first_name(name).lower() if name else ""
+                raw_first = name.split()[0].lower() if name else ""
+                name_verified = False
+
+                if dialog_text:
+                    if (first_name and first_name in dialog_text) or (raw_first and raw_first in dialog_text):
+                        name_verified = True
+                    elif "add a note" in dialog_text or "send without a note" in dialog_text or "invitation" in dialog_text:
+                        name_verified = True
+                    else:
+                        console.print(
+                            f"  [bold red]  ✘ SAFETY NET: Modal target name mismatch! Expected '{first_name}' "
+                            f"in modal text, but found: '{dialog_text[:60]}...'. ABORTING connection attempt.[/bold red]"
+                        )
+                        try:
+                            page.keyboard.press("Escape")
+                            page.wait_for_timeout(1000)
+                        except Exception:
+                            pass
+                        return False, "modal_name_mismatch"
+                else:
+                    name_verified = True
+
+                if send_blank_btn and name_verified:
+                    if ghost_run:
+                        console.print(f"  [dim]  GHOST RUN: Would have clicked '{send_blank_btn.inner_text().strip()}' for {name}[/dim]")
+                        return True, "ghost_sent"
+                    
+                    page.wait_for_timeout(800)
+                    try:
+                        send_blank_btn.click(timeout=2000)
+                    except Exception:
+                        try:
+                            send_blank_btn.focus()
+                            page.keyboard.press("Enter")
+                        except Exception:
+                            send_blank_btn.evaluate("node => node.click()")
+
+                    human_sleep(2.0, 3.5, "After send")
+                    return True, "Blank Sent"
+                else:
+                    if attempt == 1:
+                        console.print(f"  [yellow]  ⚠ Could not confirm Send button in modal on attempt 1 for {name}. Retrying once...[/yellow]")
+                        try:
+                            page.keyboard.press("Escape")
+                            page.wait_for_timeout(1000)
+                        except Exception:
+                            pass
+                        continue
+                    else:
+                        console.print(f"  [yellow]  ⚠ Could not confirm Send button in modal for {name} after retry.[/yellow]")
                         try:
                             page.keyboard.press("Escape")
                             page.wait_for_timeout(1000)
@@ -1180,23 +1256,17 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                             except Exception as e_draft:
                                 console.print(f"  [yellow]  ⚠ 1-by-1 DM drafting error for {name}: {e_draft}[/yellow]")
 
-                            # Update Google Sheet row if lead exists or was retried
+                            # Real-time Sheet Persistence: immediately log or update the lead row in Google Sheets
                             try:
                                 from utils.sheets import SheetsClient
                                 sheets_client = SheetsClient()
-                                sheets_client.update_lead_company_and_dm(
-                                    profile_url=url,
-                                    new_company=verified_company,
-                                    new_role=verified_position,
-                                    new_dm=lead.get("drafted_dm", ""),
-                                    new_note=lead.get("connection_note", "")
-                                )
-                                sheets_client.update_status(url, sent_status)
+                                sheets_client.log_or_update_lead(lead)
                                 mark_contacted(url, sent_status)
                             except Exception as e_sheet:
                                 console.print(f"  [dim]  Note on sheet update: {e_sheet}[/dim]")
 
                             self.results.append(lead)
+                            self._save_checkpoint(leads)
                         else:
                             if not is_retry and status not in ("already_pending", "modal_name_mismatch", "weekly_limit_reached", "email_required"):
                                 console.print(f"  [yellow]  ⚠ Connection attempt failed for {name} ({status}). Scheduling retry...[/yellow]")
@@ -1223,6 +1293,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                                         SheetsClient().update_status(url, "retry")
                                     except Exception:
                                         pass
+                            self._save_checkpoint(leads)
 
                         # Mutual exclusion: batch sleep OR inter-connection sleep
                         if session_visit_count > 0 and session_visit_count % self.batch_size == 0 and visit_count < visit_limit:
@@ -1235,6 +1306,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         lead["status"] = "critical_error"
                         self.skipped_count += 1
                         self.results.append(lead)
+                        self._save_checkpoint(leads)
                         continue
 
             except KeyboardInterrupt:
