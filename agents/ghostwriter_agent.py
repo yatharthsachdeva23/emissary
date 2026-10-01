@@ -30,19 +30,330 @@ LEADS_PATH = DATA_DIR / "leads_today.json"
 INSTRUCTIONS_PATH = DATA_DIR / "prompt_instructions.json"
 MAX_NOTE_LENGTH = 280
 
-# ── Deep-Dive 1-by-1 Intelligence & DM Drafting Prompt ───────────────────────
-DEEP_DIVE_RESEARCH_PROMPT = """You are the personalized messaging drafting engine for "Emissary," built by Yatharth.
-Yatharth is a 4th-year student at Delhi Technological University (DTU, 9.3 CGPA) and former AI PM Intern at NoBrokerHood. He specializes in Product Management, B2B sales automation, search algorithm optimization, and product strategy.
+# ─── Multi-Track Pitch Configurations ─────────────────────────────────────────
+TRACK_CONFIGS = {
+    "proptech_sales_tech": {
+        "title": "Dubai / UAE PropTech (Sales Acceleration + Tech Automation)",
+        "role_pitch": "Growth, B2B Sales & Tech Product Specialist (Intern)",
+        "background_summary": (
+            "- Candidate: Yatharth Sachdeva, 4th-year student at Delhi Technological University (DTU, 9.3 CGPA).\n"
+            "- Past Experience: Intern at NoBrokerHood (India's leading PropTech unicorn).\n"
+            "- Key Value Proposition: Rare hybrid capability combining B2B sales execution and technical automation.\n"
+            "- Proven PropTech & Sales Outcomes:\n"
+            "  1. Shipped automated B2B sales outreach workflows capturing 25+ extra qualified leads/month with zero manual touch.\n"
+            "  2. Optimized search and property discovery algorithms delivering 1.5x output coverage within identical credit constraints.\n"
+            "  3. Built RAG research pipelines to gather commercial real estate intelligence and accelerate high-value deal closures."
+        ),
+        "focus_instruction": (
+            "You must frame the entire message around bridging SALES ACCELERATION and TECH/AUTOMATION for PropTech.\n"
+            "Focus on: accelerating high-intent buyer/tenant qualification, automating listing discovery workflows, removing sales pipeline friction, and scaling transaction velocity.\n"
+            "STRICT RULES:\n"
+            "- ABSOLUTELY FORBIDDEN: DO NOT mention any college society fest, sponsorships, or college deals!\n"
+            "- ABSOLUTELY FORBIDDEN: DO NOT mention any Agentic AI Hackathon!"
+        ),
+        "p1_instruction": (
+            "- Choose naturally among these PropTech problem opening styles tailored for startups (vary dynamically across leads):\n"
+            "  Style A (Lead Qualification & Velocity): \"Looking at how {clean_company} is scaling property transactions, a critical operational friction in proptech is qualifying high-intent buyers/tenants before leads go cold.\"\n"
+            "  Style B (Listing & Discovery): \"While tracking {clean_company}'s platform, an immediate bottleneck that proptech platforms encounter is streamlining listing discovery and user matching so inquiries convert into booked viewings.\"\n"
+            "  Style C (Sales Funnel Leakage): \"In building out {clean_company}'s growth engine, a major hurdle in real estate tech is high drop-off between initial property search and actual deal engagement.\""
+        ),
+        "p2_instruction": (
+            "- Connect resolving this to measurable PropTech business gains:\n"
+            "  - Framing example: \"Once this friction is resolved, the upside is immediate: faster lead-to-viewing conversion, reduced sales response latency, and turning search traffic into high-intent transactional pipeline without expanding headcount.\""
+        ),
+        "p3_instruction": (
+            "- Present how Yatharth solves this combining B2B Sales + Tech:\n"
+            "  - Framing example: \"I can help tackle this from a sales and tech standpoint by [specific mechanism: e.g. automating lead qualification cadences and streamlining property inquiry routing]. During my internship at NoBrokerHood (PropTech unicorn), I shipped automated B2B sales outreach workflows capturing 25+ extra qualified leads/month and optimized search discovery logic for 1.5x output coverage. (I'm a 4th-year IT student at DTU, 9.3 CGPA, and in fact, this entire outreach system was researched and delivered autonomously by a system I built).\""
+        ),
+        "ai_disclosure_allowed": True,
+        "hackathon_allowed": False,
+    },
+    "property_sales": {
+        "title": "Dubai / UAE Property & Residential Real Estate (B2B Sales & Client Acquisition)",
+        "role_pitch": "B2B Sales, Business Development & Client Acquisition Specialist (Intern)",
+        "background_summary": (
+            "- Candidate: Yatharth Sachdeva, 4th-year student at Delhi Technological University (DTU, 9.3 CGPA).\n"
+            "- Past Experience: Intern at NoBrokerHood driving B2B sales outreach and deal acceleration.\n"
+            "- Key Value Proposition: High-velocity client acquisition, pipeline conversion, proactive outbound prospecting, and deal closures.\n"
+            "- Proven Sales Outcomes:\n"
+            "  1. Shipped zero-touch B2B sales outreach capturing 25+ extra qualified enterprise leads per month.\n"
+            "  2. Built intelligence gathering cadences to research property prospects and accelerate high-value deal closures."
+        ),
+        "focus_instruction": (
+            "CRITICAL: Frame this purely from a SALES, BUSINESS DEVELOPMENT, and CLIENT ACQUISITION perspective.\n"
+            "STRICT RULES:\n"
+            "- DO NOT mention tech jargon (NO APIs, databases, software code, microservices).\n"
+            "- ABSOLUTELY FORBIDDEN: NEVER mention college society fest, sponsorships, or college deals! (Dubai leads must only see commercial & unicorn experience).\n"
+            "- ABSOLUTELY FORBIDDEN: NEVER mention that this message or outreach was done by AI, an autonomous system, or a bot!\n"
+            "- ABSOLUTELY FORBIDDEN: DO NOT mention any Agentic AI Hackathon!\n"
+            "- The message MUST read as an authentic, high-caliber sales professional reaching out directly."
+        ),
+        "p1_instruction": (
+            "- Choose naturally among these real estate sales problem opening styles tailored for startups:\n"
+            "  Style A (Buyer/Tenant Acquisition): \"Looking at {clean_company}'s portfolio in residential and property sales, a persistent challenge in high-end real estate is capturing and converting high-intent buyers before they engage competing brokers.\"\n"
+            "  Style B (Pipeline Response Latency): \"While tracking {clean_company}'s growth in the property market, an immediate bottleneck agencies face is following up with inbound property inquiries fast enough to maximize viewing conversion rates.\"\n"
+            "  Style C (Outbound Prospecting): \"In expanding {clean_company}'s client base, a major hurdle in real estate sales is maintaining a consistent outbound pipeline of qualified property buyers and investors.\""
+        ),
+        "p2_instruction": (
+            "- Connect resolving this to measurable real estate sales gains:\n"
+            "  - Framing example: \"Solving this directly drives top-line revenue: higher viewing-to-close ratios, shorter sales cycle durations, and a predictable monthly pipeline of qualified buyers and tenants.\""
+        ),
+        "p3_instruction": (
+            "- Present how Yatharth solves this from a Sales standpoint:\n"
+            "  - Framing example: \"I can help drive this from a sales standpoint by [specific sales mechanism: e.g. structuring disciplined outbound qualification cadences and rapid lead response workflows to ensure zero buyer leakage]. During my internship at NoBrokerHood, I drove B2B sales outreach workflows capturing 25+ extra qualified leads per month and accelerated deal closure timelines through proactive pipeline follow-ups. (I'm a 4th-year student at DTU, 9.3 CGPA).\""
+        ),
+        "ai_disclosure_allowed": False,
+        "hackathon_allowed": False,
+    },
+    "tech_pm": {
+        "title": "Tech & Software Startups (Product Management & APM)",
+        "role_pitch": "Associate Product Manager (APM) / AI Product Manager (Intern)",
+        "background_summary": (
+            "- Candidate: Yatharth Sachdeva, 4th-year student at Delhi Technological University (DTU, 9.3 CGPA, Information Technology).\n"
+            "- Past Experience: AI Product Management Intern at NoBrokerHood.\n"
+            "- Key Value Proposition: Built 15+ end-to-end projects from scratch with obsessive focus on exceptional user experience (UX) and solving practical, real-world problems. Experienced across user activation, onboarding flow optimization, and product-led growth (PLG) loops.\n"
+            "- Proven PM Outcomes:\n"
+            "  1. Shipped 15+ complete end-to-end software and AI projects from zero to one, never building anything that does not solve a tangible real-life problem, always ensuring exceptional UX.\n"
+            "  2. Revamped search & discovery user experience and product logic at NoBrokerHood to deliver 1.5x output coverage within identical constraints.\n"
+            "  3. Shipped automated B2B product features and conversion flows capturing 25+ extra qualified leads per month.\n"
+            "  4. Secured 4th rank in Agentic AI Hackathon by NMG Labs & 1st place in IIT Delhi ONDC DebugXBecon'25 Hackathon."
+        ),
+        "focus_instruction": (
+            "Frame the entire message strictly from a PRODUCT MANAGEMENT (PM) perspective.\n"
+            "Focus purely on user experience (UX), customer onboarding flows, product friction, activation bottlenecks, and conversion metrics.\n"
+            "Emphasize Yatharth's track record of 15+ end-to-end projects built with exceptional UX to solve real problems.\n"
+            "STRICT RULES:\n"
+            "- ABSOLUTELY FORBIDDEN: DO NOT mention any college society fest, sponsorships, or college deals!\n"
+            "- NO deep infrastructure jargon (no database indexing, compute costs, microservices, latency benchmarks)."
+        ),
+        "p1_instruction": (
+            "- Choose naturally among these high-agency PM opening styles tailored for startups (vary dynamically across leads):\n"
+            "  Style A (Onboarding & Activation): \"Looking at how {clean_company} is scaling its core workflows, a critical product bottleneck is user onboarding friction and activation drop-offs before users reach the core 'aha' moment.\"\n"
+            "  Style B (Feature Adoption & Workflow UX): \"While tracking {clean_company}'s product evolution, an immediate challenge that often stands out is reducing workflow friction so new users quickly become sticky, daily active users.\"\n"
+            "  Style C (Conversion Funnel): \"In building out {clean_company}'s product experience, a key hurdle teams usually run into is conversion leakage in the core signup-to-activation funnel.\""
+        ),
+        "p2_instruction": (
+            "- Connect resolving this to measurable product metrics:\n"
+            "  - Framing example: \"Once this friction is resolved, the upside is immediate: faster time-to-first-value, higher onboarding completion rates, and turning casual signups into sticky active users without relying on manual handoffs.\""
+        ),
+        "p3_instruction": (
+            "- Present how Yatharth solves this from a PM perspective:\n"
+            "  - Framing example: \"I can help tackle this from a product standpoint by [specific PM approach: e.g. designing frictionless user activation triggers and streamlining the core onboarding journey]. I've built 15+ end-to-end projects from scratch with an obsessive focus on exceptional UX and solving practical real-life problems. At NoBrokerHood as an AI PM Intern, I worked cross-functionally across engineering, design, and growth to ship automated B2B features capturing 25+ extra qualified leads/month and revamped search discovery logic for 1.5x output coverage. (I'm a 4th-year IT student at DTU, 9.3 CGPA, 4th rank in NMG Labs Agentic AI Hackathon, and in fact, this entire outreach system was researched and delivered autonomously by a product engine I built).\""
+        ),
+        "ai_disclosure_allowed": True,
+        "hackathon_allowed": True,
+    },
+    "non_tech_pm": {
+        "title": "Non-Tech Startups (Product Management & Operations Optimization)",
+        "role_pitch": "Associate Product Manager (APM) / Product Operations Intern",
+        "background_summary": (
+            "- Candidate: Yatharth Sachdeva, 4th-year student at Delhi Technological University (DTU, 9.3 CGPA).\n"
+            "- Past Experience: Product Intern at NoBrokerHood.\n"
+            "- Key Value Proposition: Built 15+ end-to-end projects with exceptional user experience (UX) solving practical real-world problems. Expertise in digital product execution, user checkout/order funnel optimization, catalog discovery, and conversion rate optimization (CRO).\n"
+            "- Proven Product Outcomes:\n"
+            "  1. Built 15+ complete end-to-end projects from scratch, never building anything that doesn't solve a tangible real-life problem, always ensuring exceptional UX.\n"
+            "  2. Revamped search & discovery user experience and product catalog flows at NoBrokerHood delivering 1.5x output coverage within identical constraints.\n"
+            "  3. Shipped automated B2B customer conversion features and workflows capturing 25+ extra qualified leads per month.\n"
+            "  4. Worked cross-functionally across operations, business, and engineering to eliminate customer workflow friction."
+        ),
+        "focus_instruction": (
+            "Frame the entire message strictly around PRODUCT MANAGEMENT (PM) and DIGITAL USER EXPERIENCE for a non-tech / consumer / operations-focused startup.\n"
+            "Focus on: customer checkout & ordering journey, catalog/product discovery, repeat purchase/retention loops, user onboarding, or operations workflows.\n"
+            "Highlight Yatharth's craft of 15+ end-to-end projects built with exceptional UX that solve practical problems.\n"
+            "STRICT RULES:\n"
+            "- ABSOLUTELY FORBIDDEN: DO NOT mention any college society fest, sponsorships, or college deals!\n"
+            "- ABSOLUTELY FORBIDDEN: NEVER mention that this message or outreach was done by AI, an autonomous system, or a bot!\n"
+            "- ABSOLUTELY FORBIDDEN: DO NOT mention any Agentic AI Hackathon!\n"
+            "- Keep language grounded in customer experience, conversion funnels, and operational product efficiency."
+        ),
+        "p1_instruction": (
+            "- Choose naturally among these product problem opening styles tailored for non-tech / consumer startups:\n"
+            "  Style A (Conversion Funnel & Drop-off): \"Looking at how {clean_company} is scaling its customer journey, a common friction point in consumer and operational platforms is drop-off between product discovery and completed checkout/booking.\"\n"
+            "  Style B (Search & Catalog Discovery UX): \"While tracking {clean_company}'s operations, an immediate opportunity that stands out is streamlining how customers search, discover, and select items to maximize repeat ordering.\"\n"
+            "  Style C (Operations & Fulfillment Workflows): \"In expanding {clean_company}'s business, a key bottleneck is often the digital workflow between user demand and backend fulfillment operations.\""
+        ),
+        "p2_instruction": (
+            "- Connect resolving this to measurable business and product metrics:\n"
+            "  - Framing example: \"Once this friction is resolved, the upside is immediate: higher checkout completion rates, smoother customer onboarding, and fewer operational drop-offs without requiring manual customer support interventions.\""
+        ),
+        "p3_instruction": (
+            "- Present how Yatharth solves this from a PM perspective:\n"
+            "  - Framing example: \"I can help tackle this from a product standpoint by [specific PM mechanism: e.g. mapping user drop-off triggers, redesigning catalog discovery flows, and running targeted conversion experiments]. I've built 15+ end-to-end projects from scratch with an obsessive focus on exceptional UX and solving practical real-world problems. During my internship at NoBrokerHood, I streamlined search and discovery flows to deliver 1.5x output coverage and shipped automated conversion features capturing 25+ extra qualified leads/month. (I'm a 4th-year student at DTU, 9.3 CGPA).\""
+        ),
+        "ai_disclosure_allowed": False,
+        "hackathon_allowed": False,
+    },
+    "non_tech_growth_sales": {
+        "title": "Non-Tech Startups (Sales, Business Development & Growth)",
+        "role_pitch": "B2B Sales, Business Development & Growth Intern",
+        "background_summary": (
+            "- Candidate: Yatharth Sachdeva, 4th-year student at Delhi Technological University (DTU, 9.3 CGPA).\n"
+            "- Past Experience: Intern at NoBrokerHood driving sales outreach, client acquisition, and pipeline growth.\n"
+            "- Key Value Proposition: High-tempo client acquisition, outbound B2B pipeline generation, partnership outreach, deal conversion, and funnel UX optimization.\n"
+            "- Proven Sales & Growth Outcomes:\n"
+            "  1. Shipped automated B2B sales outreach workflows at NoBrokerHood capturing 25+ extra qualified leads per month.\n"
+            "  2. For Indian Sales Startups: Personally spearheaded college society fest corporate sponsorships, closing ₹3–10 Lakh deals each year through disciplined cold outbound pitching and high-stakes deal negotiations.\n"
+            "  3. Obsessive focus on user experience (UX) applied to sales funnels, user conversion, and customer touchpoints.\n"
+            "  4. Executed prospect qualification cadences and proactive pipeline follow-ups to accelerate deal closures."
+        ),
+        "focus_instruction": (
+            "Frame the message strictly around SALES, BUSINESS DEVELOPMENT, or GROWTH:\n"
+            "- If the lead is in Sales / BD / Commercial -> Pitch outbound prospecting, client acquisition, and pipeline expansion.\n"
+            "- If the lead is a Founder / CEO / Ops -> Pitch revenue growth, corporate partnerships, and reliable customer pipeline.\n"
+            "SALES PROOF RULES:\n"
+            "- IF THE TARGET COMPANY IS INDIAN: Show proof through BOTH NoBrokerHood B2B sales outreach (25+ extra qualified leads/month) AND personal college society fest corporate work closing ₹3–10 Lakh deals each year via cold outreach and deal negotiations. (Also mention user experience focus on conversion funnels).\n"
+            "- IF THE TARGET COMPANY IS OUTSIDE INDIA (e.g. Dubai, US): NEVER mention college society fest or fest sponsorship deals! Only cite NoBrokerHood B2B sales pipeline outcomes.\n"
+            "STRICT RULES:\n"
+            "- ABSOLUTELY FORBIDDEN: NEVER mention that this message or outreach was done by AI, an autonomous system, or a bot!\n"
+            "- ABSOLUTELY FORBIDDEN: DO NOT mention any Agentic AI Hackathon!\n"
+            "- Keep language focused on business execution, revenue pipeline, and client conversion."
+        ),
+        "p1_instruction": (
+            "- Choose naturally among these business growth problem opening styles:\n"
+            "  Style A (Customer & Client Acquisition): \"Looking at how {clean_company} is expanding its market presence, a central challenge in scaling operations is maintaining a consistent outbound pipeline of qualified clients and commercial partners.\"\n"
+            "  Style B (Pipeline Conversion & Follow-up): \"While tracking {clean_company}'s commercial operations, an immediate opportunity that stands out is tightening the conversion cadence from initial prospect interest to confirmed deal closures.\"\n"
+            "  Style C (B2B Partnerships & Outbound): \"In expanding {clean_company}'s reach, a major hurdle is building predictable outbound outreach cadences that generate qualified meetings consistently without high acquisition costs.\""
+        ),
+        "p2_instruction": (
+            "- Connect resolving this to measurable business outcomes:\n"
+            "  - Framing example: \"Solving this directly accelerates business velocity: higher lead-to-client conversion, shorter sales cycles, and a predictable monthly pipeline of commercial accounts.\""
+        ),
+        "p3_instruction": (
+            "- Present how Yatharth solves this with hands-on sales execution:\n"
+            "  - For Indian startups framing example: \"I can help tackle this from a sales standpoint by [specific sales mechanism: e.g. implementing high-tempo outbound outreach cadences and structured prospect follow-ups]. During my internship at NoBrokerHood, I executed outreach workflows that brought in 25+ extra qualified leads per month, and I've also personally driven corporate sponsorships for our college society fest, closing ₹3–10 Lakh deals each year through cold outbound pitching and deal negotiations. (I'm a 4th-year student at DTU, 9.3 CGPA).\"\n"
+            "  - For Non-Indian / International startups framing example: \"I can help tackle this from a sales standpoint by [specific sales mechanism: e.g. implementing high-tempo outbound outreach cadences and structured prospect follow-ups]. During my internship at NoBrokerHood, I executed outreach workflows that brought in 25+ extra qualified leads per month and accelerated deal closures. (I'm a 4th-year student at DTU, 9.3 CGPA).\""
+        ),
+        "ai_disclosure_allowed": False,
+        "hackathon_allowed": False,
+    },
+    "founders_office": {
+        "title": "Early-Stage Startups (Founder's Office / Generalist / Growth & Ops)",
+        "role_pitch": "Founder's Office Intern (Generalist / Growth & Ops)",
+        "background_summary": (
+            "- Candidate: Yatharth Sachdeva, 4th-year student at Delhi Technological University (DTU, 9.3 CGPA).\n"
+            "- Past Experience: Intern at NoBrokerHood (unicorn).\n"
+            "- Key Value Proposition: High-agency generalist capable of wearing multiple hats across product UX, sales pipeline execution, and zero-to-one operations.\n"
+            "- Proven Outcomes:\n"
+            "  1. Built 15+ end-to-end projects from scratch, obsessively focused on exceptional user experience (UX) and solving practical, real-life problems (never building anything without a tangible purpose).\n"
+            "  2. Shipped automated B2B sales outreach workflows capturing 25+ extra qualified leads/month at NoBrokerHood.\n"
+            "  3. Revamped search and discovery product logic delivering 1.5x output coverage within identical constraints.\n"
+            "  4. For Indian startups: Spearheaded corporate sponsorships closing ₹3–10 Lakh deals each year through disciplined cold outbound."
+        ),
+        "focus_instruction": (
+            "Frame the entire message around being an agile, high-agency generalist for the Founder's Office at an early-stage startup.\n"
+            "Position Yatharth as someone who operates without silos: taking full ownership across product user experience (UX), customer pipeline execution, and zero-to-one operational tasks without requiring handholding.\n"
+            "STRICT RULES:\n"
+            "- If the startup is Indian, you may mention closing ₹3–10 Lakh deals each year in corporate sponsorships alongside NoBrokerHood.\n"
+            "- If the startup is outside India (Dubai, US): NEVER mention college fest or sponsorship deals!\n"
+            "- ABSOLUTELY FORBIDDEN: NEVER mention that this message or outreach was done by AI, an autonomous system, or a bot!\n"
+            "- ABSOLUTELY FORBIDDEN: DO NOT mention any Agentic AI Hackathon!\n"
+            "- Emphasize extreme ownership, user experience craft, and high execution speed."
+        ),
+        "p1_instruction": (
+            "- Choose naturally among high-agency Founder's Office problem opening styles:\n"
+            "  Style A (Execution Bandwidth): \"Looking at how {clean_company} is scaling its zero-to-one operations, a recurring challenge for early founding teams is balancing high-level strategy with day-to-day execution across product UX, customer acquisition, and operational fires.\"\n"
+            "  Style B (Product UX & Customer Discovery): \"While following {clean_company}'s trajectory, an immediate bottleneck early teams face is rapidly iterating on product user experience while simultaneously executing outbound pipeline and talking to early customers.\"\n"
+            "  Style C (Cross-Functional Velocity): \"In scaling {clean_company}, early-stage teams often run into bandwidth constraints—moving fast across product workflows, customer onboarding, and pipeline execution simultaneously.\""
+        ),
+        "p2_instruction": (
+            "- Connect resolving this to founder velocity:\n"
+            "  - Framing example: \"Having dedicated Founder's Office execution directly frees up leadership bandwidth: faster product UX iteration cycles, zero lead drop-off in early customer pipelines, and agile execution across cross-functional priorities without adding bulky headcount.\""
+        ),
+        "p3_instruction": (
+            "- Present how Yatharth solves this as a high-agency generalist:\n"
+            "  - Framing example: \"I can plug into the Founder's Office as a high-agency generalist to tackle [specific execution area: e.g. refining product user experience, executing customer outreach pipelines, or setting up operational workflows]. I've built 15+ end-to-end projects from scratch with an obsessive focus on exceptional UX and solving practical real-world problems. During my internship at NoBrokerHood, I shipped automated B2B sales outreach capturing 25+ extra leads/month and optimized discovery logic for 1.5x output coverage. (I'm a 4th-year student at DTU, 9.3 CGPA).\""
+        ),
+        "ai_disclosure_allowed": False,
+        "hackathon_allowed": False,
+    }
+}
 
-ABOUT YATHARTH'S BACKGROUND & ACHIEVEMENTS:
-- College: 4th-year student at Delhi Technological University (DTU), Information Technology, 9.3 CGPA.
-- Past Experience: AI Product Management Intern at NoBrokerHood.
-- Key Outcomes:
-  1. Built automated B2B sales engines capturing 25+ extra qualified leads per month.
-  2. Optimized search algorithms to deliver 1.5x output coverage within identical credit constraints.
-  3. Developed automated research intelligence products to accelerate enterprise deal closures.
-- Hackathon: Ranked 4th in NMG Labs' Agentic AI Hackathon.
-- Live Proof: This very message interaction was researched, targeted, and delivered autonomously by a system built by Yatharth.
+# ─── Company Tier Messaging Configurations ────────────────────────────────────
+TIER_INSTRUCTIONS = {
+    "enterprise": {
+        "title": "Big Giant / Enterprise ({clean_company})",
+        "guidance": (
+            "COMPANY TIER: BIG GIANT / ENTERPRISE ({clean_company} is an established industry leader / large-scale enterprise).\n"
+            "MESSAGING STRATEGY FOR BIG GIANTS:\n"
+            "- CRITICAL RULE: DO NOT focus on or point out internal problems, bugs, or platform bottlenecks at {clean_company}!\n"
+            "  (It sounds presumptuous and amateurish to tell an established industry leader that their systems are flawed).\n"
+            "- INSTEAD, FOCUS HEAVILY ON WHAT YATHARTH CAN PROVIDE AND WHAT HE KNOWS:\n"
+            "  * Paragraph 1 (Acknowledge Scale & Leadership): Acknowledge {clean_company}'s premier market footprint, high transaction volume, or enterprise scale without pointing out bugs.\n"
+            "  * Paragraph 2 (What We Can Provide): Articulate high-leverage execution firepower—bringing rare hybrid B2B sales execution and technical automation, autonomous pipeline acceleration, and immediate execution without ramp-up friction.\n"
+            "  * Paragraph 3 (What We Know & Proof): Present proven outcomes: automated B2B sales outreach at NoBrokerHood (25+ extra leads/mo), search discovery optimization (1.5x output coverage), 15+ end-to-end UX projects, DTU IT (9.3 CGPA).\n"
+            "  * Paragraph 4: Friendly, low-friction CTA with resume link."
+        ),
+        "p1_style": (
+            "- Open with: \"Hi {first_name},\"\n"
+            "- Acknowledge their scale and leadership in the market (DO NOT state a problem or bottleneck):\n"
+            "  * PropTech/Property: \"Following {clean_company}'s leadership across large-scale property transactions and market footprint, driving transaction velocity and high-value buyer engagement at your scale requires seamless synergy between sales execution and technology.\"\n"
+            "  * Tech/PM: \"Following {clean_company}'s product ecosystem and user scale, delivering frictionless customer experiences while driving activation and retention at enterprise scale requires rigorous product execution.\"\n"
+            "  * Growth/Sales: \"Following {clean_company}'s premier market presence and brand leadership across the industry, scaling transaction velocity and client acquisition requires high-tempo, disciplined execution.\""
+        ),
+        "p2_style": (
+            "- Focus purely on WHAT YATHARTH CAN PROVIDE (high-leverage execution firepower):\n"
+            "  * Framing example: \"I can provide dedicated high-leverage execution to accelerate sales initiatives and automate pipeline workflows. I bring a rare hybrid capability combining B2B sales execution and technical automation, enabling me to step in, identify high-intent conversion leverage, and ship automated pipeline workflows autonomously without requiring ramp-up time.\""
+        ),
+        "p3_style": (
+            "- Focus purely on WHAT YATHARTH KNOWS & PROVEN OUTCOMES:\n"
+            "  * Framing example: \"During my internship at NoBrokerHood (PropTech unicorn), I shipped automated B2B sales outreach workflows capturing 25+ extra qualified leads per month and optimized search discovery logic for 1.5x output coverage. Additionally, I've built 15+ end-to-end projects with an obsessive focus on exceptional UX and solving practical real-world problems. (I'm a 4th-year IT student at DTU, 9.3 CGPA, and in fact, this entire outreach system was researched and delivered autonomously by a system I built).\""
+        )
+    },
+    "mid_level": {
+        "title": "Mid-Level / Scale-Up ({clean_company})",
+        "guidance": (
+            "COMPANY TIER: MID-LEVEL / MEDIUM COMPANY ({clean_company} is an established, high-growth scale-up / mid-market firm).\n"
+            "MESSAGING STRATEGY FOR MID-LEVEL:\n"
+            "- Use a balanced blend of strategic scaling momentum AND what Yatharth can provide and knows:\n"
+            "  * Paragraph 1 (Growth & Scale Context): Grounded awareness of their scaling momentum (expanding market footprint, transaction velocity, or user onboarding at scale).\n"
+            "  * Paragraph 2 (What We Can Provide & Unlock): Combining operational acceleration (faster inquiry-to-deal conversion, streamlined discovery workflows, frictionless user activation) with proactive, high-tempo execution.\n"
+            "  * Paragraph 3 (What We Know & Proof): Highlight NoBrokerHood proven metrics (25+ extra leads/mo, 1.5x search efficiency), 15+ end-to-end UX projects, hybrid capability bridging sales & tech.\n"
+            "  * Paragraph 4: Friendly, low-friction CTA with resume link."
+        ),
+        "p1_style": (
+            "- Open with: \"Hi {first_name},\"\n"
+            "- Blend market momentum with high-velocity execution context:\n"
+            "  * PropTech/Property: \"Looking at how {clean_company} is accelerating its growth across the property market, maintaining transaction velocity while streamlining buyer and investor inquiries is critical to capturing market share.\"\n"
+            "  * Tech/PM: \"Looking at how {clean_company} is scaling its product workflows, a key priority is streamlining user activation and onboarding flows to convert growing traffic into daily active users.\"\n"
+            "  * Growth/Sales: \"Looking at how {clean_company} is expanding its market footprint, maintaining a consistent outbound pipeline of qualified clients without rising acquisition costs is a central growth driver.\""
+        ),
+        "p2_style": (
+            "- Connect resolving friction with what we can provide and unlock:\n"
+            "  * Framing example: \"Once this execution is locked in, the upside is immediate: faster lead-to-viewing conversion, reduced sales response latency, and turning search traffic into high-intent transactional pipeline without expanding headcount.\""
+        ),
+        "p3_style": (
+            "- Present what Yatharth provides and knows (hybrid sales + tech proof):\n"
+            "  * Framing example: \"I can help accelerate this from a sales and tech standpoint by automating high-intent buyer qualification cadences and streamlining property listing workflows. During my internship at NoBrokerHood (PropTech unicorn), I shipped automated B2B sales outreach workflows capturing 25+ extra qualified leads/month and optimized search discovery logic for 1.5x output coverage. (I'm a 4th-year IT student at DTU, 9.3 CGPA, and in fact, this entire outreach system was researched and delivered autonomously by a system I built).\""
+        )
+    },
+    "startup": {
+        "title": "Startup ({clean_company})",
+        "guidance": (
+            "COMPANY TIER: STARTUP (0-5 years operating, early-stage agility).\n"
+            "MESSAGING STRATEGY FOR STARTUPS:\n"
+            "- Follow the classic startup problem-solving flow:\n"
+            "  * Paragraph 1: Pinpoint specific operational friction, bottleneck, or drop-off point at {clean_company}.\n"
+            "  * Paragraph 2: Upside and tangible business/pipeline gains once resolved.\n"
+            "  * Paragraph 3: Concrete mechanism of how Yatharth solves this combining sales & tech + proven NoBrokerHood and 15+ UX projects proof.\n"
+            "  * Paragraph 4: Friendly, low-friction CTA with resume link."
+        ),
+        "p1_style": None,
+        "p2_style": None,
+        "p3_style": None,
+    }
+}
+
+# ─── Deep-Dive Intelligence & Personalized DM Drafting Prompt ────────────────
+DEEP_DIVE_RESEARCH_PROMPT = """You are the personalized outreach drafting engine representing Yatharth Sachdeva.
+Yatharth is applying for an immediate 2-month internship at an ambitious venture.
+
+TRACK & POSITIONING FOR THIS TARGET:
+- Pitch Track: {track_title}
+- Role Targeted: {role_pitch}
+- Geographic Target: {geo_segment}
+- Company Tier: {company_tier}
+- Candidate Background & Key Outcomes:
+{background_summary}
 
 TARGET LEAD INFORMATION (VERIFIED LIVE FROM LINKEDIN):
 - Name: {lead_name}
@@ -60,57 +371,42 @@ TARGET LEAD INFORMATION (VERIFIED LIVE FROM LINKEDIN):
 \"\"\"
 
 YOUR DEEP-DIVE RESEARCH & DRAFTING INSTRUCTIONS:
-Execute this in four rigorous steps:
+{focus_instruction}
 
-STEP 1: COMPANY & PRODUCT DECONSTRUCTION
-Analyze what {clean_company} actually does. Identify their core platform/offering, target users (B2B, B2C, Enterprise, etc.), and their primary business model.
-(Produce a crisp 1-2 sentence breakdown for the company_analysis field).
+{tier_messaging_instruction}
 
-STEP 2: OPERATIONAL BOTTLENECK AUDIT (STRICT DOMAIN BOUNDARIES)
-Identify a concrete, high-friction operational, technical, or product bottleneck at {clean_company} that falls STRICTLY into one of Yatharth's core builder domains:
-1. Tech & AI Automation: Agentic workflows, web scrapers, data pipelines, search algorithm optimization, automating manual engineering or operations tasks.
-2. Product Management: User activation drop-offs, onboarding friction, feature discovery loops, product-led growth mechanics, sprint execution velocity.
-3. B2B Sales & Growth Funnels: Outbound pipeline generation engines, automated lead qualification, reducing SDR prospecting grind, lead enrichment workflows.
-4. Growth Marketing: Product-led acquisition loops, conversion funnel leakages, algorithmic targeting.
+DETAILED MESSAGE STRUCTURE (drafted_dm):
+Write a 4-paragraph direct message formatted with \\n\\n between paragraphs:
 
-STRICT EXCLUSIONS - DO NOT PROPOSE OR MENTION:
-Financing, fundraising, accounting, legal/compliance, human resources (HR), or cloud infrastructure/DevOps.
-
-STEP 3: GROUNDED OUTCOME FORMULATION
-Frame a realistic, tangible operational outcome without using hype words like "imagine", "what if", "synergy", "game-changer", or "paradigm". Focus on concrete efficiency, pipeline scale, or user throughput.
-
-STEP 4: 3-PARAGRAPH DIRECT MESSAGE GENERATION
-Write an authentic, builder-to-builder direct message (drafted_dm) structured exactly as follows:
-
-Paragraph 1: Genuine Curiosity & Grounded Vision
+Paragraph 1: Context & Opening
 - Open with: "Hi {first_name},"
-{cohort_p1_instruction}
-- Then ground the vision naturally with one of these variations:
-  - "See, {clean_company} has the potential to [concrete outcome in their domain], and getting this right could really [tangible product/business benefit]."
-  - "If {clean_company} nails [concrete outcome in their domain], it could really [tangible product/business benefit]."
-  - "{clean_company} is in a prime spot to [concrete outcome in their domain], which would directly [tangible product/business benefit]."
+{p1_instruction}
+- Ground it in what {clean_company} actually does.
 
-Paragraph 2: The Solution & Concrete Proof
-- Natural transition: "I can actually help you guys achieve this."
-- Present Yatharth's credibility naturally to back up the claim: "I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, where I worked cross-functionally across engineering, product, and sales to build automated B2B engines capturing 25+ extra qualified leads a month, and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. In fact, this message was researched and delivered by an autonomous system I built to test product execution live."
+Paragraph 2: Strategic Value / Upside / What We Can Provide
+{p2_instruction}
 
-Paragraph 3: The 12-Min Chat & Brief Check
-- Friendly, low-friction ask: "Let's do a quick 12-min call where we can discuss this and see how it matches both of us. You can check my resume and get a quick brief about me here: {resume_link}\\n\\nLet me know a good time for us to do a meet!"
+Paragraph 3: "I Can Solve / Deliver This Like This" (Concrete Mechanism + What We Know + Proof)
+{p3_instruction}
+
+Paragraph 4: Friendly, Low-Friction Call to Action
+- "Would love to share a few actionable ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {resume_link}\\n\\nLet me know what time works best for you!"
 
 CRITICAL RULES:
-- Separate the 3 paragraphs with \\n\\n in the JSON string.
-- Address the person by their clean first name: "Hi {first_name},". Never address by titles like "Hi Dr," or "Hi Mr,".
-- Use the clean, conversational company name "{clean_company}" (NEVER use formal suffixes like "Pvt. Ltd.", "Ltd", "Inc", "LLC").
-- STRICTEST RULE - DO NOT MENTION PREVIOUS COMPANIES: If the lead recently changed companies or has older jobs in their experience timeline, you must NEVER mention, reference, or hint at their previous company. Treat them purely as a leader at {clean_company}.
-- NEVER use words like: "imagine", "what if", "pleasure", "honored", "aspiring", "hope", "delve", "apologize", "sincerely", "opportunity", "passionate", "revolutionize", "synergy".
-- Keep length around 120-140 words. Easy to read, authentic, and impactful.
+- Separate the 4 paragraphs with \\n\\n in the JSON string.
+- Address the person by their clean first name: "Hi {first_name},". Never use formal titles like "Hi Dr," or "Hi Mr,".
+- Use the clean company name "{clean_company}" (NEVER formal suffixes like "Pvt. Ltd.", "Inc", "LLC").
+- STRICTEST RULE - DO NOT MENTION PREVIOUS COMPANIES: If the lead recently changed companies or has older jobs, you must NEVER mention or reference their previous company. Treat them purely as a leader at {clean_company}.
+- NEVER use buzzwords like: "imagine", "what if", "pleasure", "honored", "aspiring", "hope", "delve", "apologize", "sincerely", "opportunity", "passionate", "revolutionize", "synergy".
+- Keep length around 130-160 words. Punchy, authentic, and persuasive builder-to-builder tone.
 
 Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
 {{
-  "company_analysis": "Crisp 1-2 sentence breakdown of what {clean_company} builds and their market.",
-  "identified_pain_point": "The specific bottleneck identified in Tech/AI, PM, Sales Funnels, or Growth Marketing.",
-  "grounded_vision": "Concrete picture of scale/efficiency.",
-  "drafted_dm": "The complete 3-paragraph direct message formatted with \\n\\n between paragraphs."
+  "company_analysis": "Crisp 1-2 sentence breakdown of what {clean_company} builds and their user base/market.",
+  "identified_pain_point": "The strategic focus area or bottleneck at {clean_company}.",
+  "expected_benefits": "Concrete metrics, business gains, or value delivered.",
+  "solution_approach": "The specific mechanism or contribution Yatharth would bring.",
+  "drafted_dm": "The complete 4-paragraph direct message formatted with \\n\\n between paragraphs."
 }}
 """
 
@@ -159,20 +455,314 @@ class GhostwriterAgent:
             truncated = truncated[:last_space]
         return truncated + "..."
 
-    def is_big_tech(self, lead: dict) -> bool:
-        """Classify if a lead belongs to a Big Tech/enterprise company or not."""
-        company = (lead.get("company") or "").lower()
-        title = (lead.get("title") or "").lower()
+    @staticmethod
+    def _infer_geo_segment(lead: dict) -> str:
+        geo = lead.get("geo_segment")
+        if geo:
+            return geo.lower()
+        text = f"{lead.get('company', '')} {lead.get('role', '')} {lead.get('snippet', '')} {lead.get('source_query', '')}".lower()
+        if any(w in text for w in ["dubai", "uae", "emirates", "abu dhabi", "sharjah"]):
+            return "dubai"
+        if any(w in text for w in ["new york", "nyc", "manhattan", "brooklyn"]):
+            return "new_york"
+        if any(w in text for w in ["united states", "usa", "san francisco", "austin", "seattle", "california"]):
+            return "us"
+        if any(w in text for w in ["bangalore", "bengaluru", "delhi", "gurgaon", "gurugram", "noida", "mumbai", "pune", "hyderabad", "india"]):
+            return "india"
+        return "other"
+
+    @staticmethod
+    def _infer_company_tier(lead: dict) -> str:
+        """
+        Infer company tier: 'enterprise' (big giants), 'mid_level', or 'startup'.
+        For Indian companies, strictly 'startup'.
+        For Non-Indian (Dubai, US, etc.), can be startup, mid_level, or enterprise.
+        """
+        tier = lead.get("company_tier")
+        if tier in ("enterprise", "mid_level", "startup"):
+            return tier
+
+        geo = (lead.get("geo_segment") or GhostwriterAgent._infer_geo_segment(lead)).lower()
+        if geo in ("india", "in"):
+            return "startup"
+
+        company = (lead.get("company") or "").lower().strip()
         role = (lead.get("role") or "").lower()
-        
-        # Word boundary match using regex is safer to avoid false positives (e.g. metadata -> meta)
-        big_tech_pattern = r'\b(google|microsoft|amazon|apple|meta|uber|stripe|netflix|adobe|salesforce|flipkart|swiggy|zomato|atlassian)\b'
-        
-        if re.search(big_tech_pattern, company):
-            return True
-        if not company and (re.search(big_tech_pattern, title) or re.search(big_tech_pattern, role)):
-            return True
-        return False
+        snippet = (lead.get("snippet") or "").lower()
+        combined = f"{company} {role} {snippet}"
+
+        # Big Giants / Enterprise
+        ENTERPRISE_KEYWORDS = [
+            "emaar", "damac", "aldar", "sobha", "nakheel", "meraas", "omniyat",
+            "danube", "deyaar", "binghatti", "mag lifestyle", "azizi", "cbre",
+            "jll", "colliers", "savills", "knight frank", "cushman",
+            "google", "microsoft", "amazon", "apple", "meta", "salesforce",
+            "oracle", "stripe", "uber", "airbnb", "netflix", "adobe",
+            "compass", "zillow", "redfin", "costar", "opendoor",
+            "enterprise", "multinational", "conglomerate", "fortune 500", "publicly traded",
+            "global real estate", "nasdaq", "nyse"
+        ]
+        if any(kw in company for kw in ENTERPRISE_KEYWORDS):
+            return "enterprise"
+
+        # Mid-Level / Established Medium Companies
+        MID_LEVEL_KEYWORDS = [
+            "betterhomes", "allsopp", "haus & haus", "cavendish", "propsearch",
+            "bayut", "propertyfinder", "fäm properties", "fam properties",
+            "dacha", "driven properties", "provident estate",
+            "series b", "series c", "series d", "scale-up", "scaleup",
+            "200+ employees", "500+ employees", "mid-market", "established",
+            "medium"
+        ]
+        if any(kw in combined for kw in MID_LEVEL_KEYWORDS):
+            return "mid_level"
+
+        return "startup"
+
+    def _infer_pitch_track(self, lead: dict, top_card: str = "", exp: str = "") -> str:
+        """Infer appropriate pitch track if not already assigned or if live scrape corrects company type."""
+        track = lead.get("pitch_track")
+        live_text = f"{lead.get('company', '')} {top_card} {exp}".lower()
+        agency_keywords = ["design studio", "ui/ux studio", "creative agency", "digital agency", "design agency", "studio", "branding agency"]
+        if any(w in live_text for w in agency_keywords) and track in ("proptech_sales_tech", "property_sales"):
+            return "tech_pm"
+
+        if track in TRACK_CONFIGS:
+            return track
+        comp_type = lead.get("company_type", "").lower()
+        role = (lead.get("role") or "").lower()
+        combined = f"{lead.get('company', '')} {role} {top_card} {exp} {lead.get('snippet', '')}".lower()
+
+        # 1. Founder's Office / Chief of Staff role check
+        fo_patterns = [r"\bfounder'?s?\s+office\b", r"\bchief\s+of\s+staff\b"]
+        if any(re.search(pat, role) or re.search(pat, combined) for pat in fo_patterns):
+            return "founders_office"
+
+        if comp_type == "proptech" or any(w in combined for w in ["proptech", "real estate tech", "property tech"]):
+            return "proptech_sales_tech"
+        if comp_type == "property" or any(w in combined for w in ["real estate", "property", "residential", "brokerage", "realtor", "housing"]):
+            return "property_sales"
+        if comp_type == "tech" or any(re.search(pat, combined) for pat in [r'\bsoftware\b', r'\bsaas\b', r'\bai\b', r'\bgenai\b', r'\bplatform\b', r'\bcloud\b', r'\btech\b', r'\bfintech\b', r'\bdeveloper\b']):
+            sales_patterns = [r'\bsales\b', r'\bbusiness development\b', r'\bbd\b', r'\bcommercial\b']
+            if any(re.search(pat, role) for pat in sales_patterns):
+                return "non_tech_growth_sales"
+            return "tech_pm"
+
+        # Non-tech startup: differentiate PM vs Sales/Growth using word boundaries
+        pm_patterns = [r'\bproduct\b', r'\bpm\b', r'\bapm\b', r'\bcpo\b', r'\buser experience\b', r'\bux\b']
+        if any(re.search(pat, role) or re.search(pat, combined) for pat in pm_patterns):
+            return "non_tech_pm"
+        return "non_tech_growth_sales"
+
+    def _generate_fallback(
+        self,
+        pitch_track: str,
+        first_name: str,
+        clean_comp: str,
+        geo_segment: str = "india",
+        company_tier: str = "startup"
+    ) -> dict:
+        """Track- and tier-specific deterministic fallback when Gemini is unavailable."""
+        # ── 1. Enterprise (Big Giants) Fallback: What we provide & know (no internal bugs) ──
+        if company_tier == "enterprise":
+            if pitch_track in ("proptech_sales_tech", "property_sales"):
+                return {
+                    "company_analysis": f"{clean_comp} premier property enterprise and market footprint.",
+                    "identified_pain_point": "Scaling transaction velocity and high-value buyer engagement at enterprise scale",
+                    "expected_benefits": "autonomous pipeline acceleration, higher viewing conversion, and seamless sales-tech synergy",
+                    "solution_approach": "providing high-leverage execution to automate buyer qualification cadences and streamline property workflows",
+                    "drafted_dm": (
+                        f"Hi {first_name},\n\n"
+                        f"Following {clean_comp}'s leadership across large-scale property transactions and market footprint, driving transaction velocity and high-value buyer engagement at your scale requires seamless synergy between sales execution and technology.\n\n"
+                        f"I can provide dedicated high-leverage execution to accelerate sales initiatives and automate pipeline workflows. I bring a rare hybrid capability combining B2B sales execution and technical automation, enabling me to step in, identify high-intent conversion leverage, and ship automated pipeline workflows autonomously without requiring ramp-up time.\n\n"
+                        f"During my internship at NoBrokerHood (PropTech unicorn), I shipped automated B2B sales outreach workflows capturing 25+ extra qualified leads per month and optimized search discovery logic for 1.5x output coverage. Additionally, I've built 15+ end-to-end projects with an obsessive focus on exceptional UX and solving practical real-world problems. (I'm a 4th-year IT student at DTU, 9.3 CGPA, and in fact, this entire outreach system was researched and delivered autonomously by a system I built).\n\n"
+                        f"Would love to share a few actionable ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                        f"Let me know what time works best for you!"
+                    )
+                }
+            elif pitch_track in ("tech_pm", "non_tech_pm"):
+                return {
+                    "company_analysis": f"{clean_comp} enterprise product ecosystem and user scale.",
+                    "identified_pain_point": "Delivering frictionless customer experiences while driving activation and retention at enterprise scale",
+                    "expected_benefits": "faster user time-to-value, higher retention, and high-tempo product-led execution",
+                    "solution_approach": "delivering autonomous PM execution across user journey mapping, onboarding UX, and conversion optimization",
+                    "drafted_dm": (
+                        f"Hi {first_name},\n\n"
+                        f"Following {clean_comp}'s product ecosystem and user scale, delivering frictionless customer experiences while driving activation and retention at enterprise scale requires rigorous product execution.\n\n"
+                        f"I can provide dedicated high-leverage product execution to streamline customer journeys and optimize user conversion. I bring an obsessive focus on exceptional UX, enabling me to step in, identify core activation drop-offs, and design frictionless user flows autonomously without ramp-up overhead.\n\n"
+                        f"I've built 15+ end-to-end projects from scratch with an obsessive focus on exceptional UX and solving practical real-world problems. At NoBrokerHood as an AI PM Intern, I worked cross-functionally across engineering, design, and growth to ship automated B2B features capturing 25+ extra qualified leads/month and revamped search discovery logic for 1.5x output coverage. (I'm a 4th-year IT student at DTU, 9.3 CGPA, 4th rank in NMG Labs Agentic AI Hackathon, and in fact, this entire outreach system was researched and delivered autonomously by a product engine I built).\n\n"
+                        f"Would love to share a few actionable ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                        f"Let me know what time works best for you!"
+                    )
+                }
+            else:  # Sales / Growth
+                return {
+                    "company_analysis": f"{clean_comp} premier market presence and enterprise client base.",
+                    "identified_pain_point": "Scaling transaction velocity and client acquisition with high-tempo execution",
+                    "expected_benefits": "expanded qualified pipeline, accelerated deal cycles, and zero-touch outbound acceleration",
+                    "solution_approach": "executing disciplined outbound qualification and pipeline acceleration",
+                    "drafted_dm": (
+                        f"Hi {first_name},\n\n"
+                        f"Following {clean_comp}'s premier market presence and brand leadership across the industry, scaling transaction velocity and client acquisition requires high-tempo, disciplined execution.\n\n"
+                        f"I can provide dedicated high-leverage execution to accelerate outbound pipelines and expand client acquisition. I bring a structured approach to B2B outbound workflows, enabling me to step in, identify high-intent buyer targets, and drive outbound pipeline momentum autonomously without requiring ramp-up time.\n\n"
+                        f"During my internship at NoBrokerHood, I executed outreach workflows that brought in 25+ extra qualified leads per month and accelerated deal closures through disciplined follow-ups. (I'm a 4th-year student at DTU, 9.3 CGPA).\n\n"
+                        f"Would love to share a few actionable ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                        f"Let me know what time works best for you!"
+                    )
+                }
+
+        # ── 2. Mid-Level (Scale-ups) Fallback: Balanced mix of scale momentum + what we provide ──
+        if company_tier == "mid_level":
+            if pitch_track in ("proptech_sales_tech", "property_sales"):
+                return {
+                    "company_analysis": f"{clean_comp} high-growth property platform and market momentum.",
+                    "identified_pain_point": "Maintaining transaction velocity while streamlining buyer and investor inquiries",
+                    "expected_benefits": "faster lead-to-viewing conversion, reduced sales response latency, and turning search traffic into transactional pipeline",
+                    "solution_approach": "automating high-intent buyer qualification cadences and streamlining property listing workflows",
+                    "drafted_dm": (
+                        f"Hi {first_name},\n\n"
+                        f"Looking at how {clean_comp} is accelerating its growth across the property market, maintaining transaction velocity while streamlining buyer and investor inquiries is critical to capturing market share.\n\n"
+                        f"Once this execution is locked in, the upside is immediate: faster lead-to-viewing conversion, reduced sales response latency, and turning search traffic into high-intent transactional pipeline without expanding headcount.\n\n"
+                        f"I can help accelerate this from a sales and tech standpoint by automating high-intent buyer qualification cadences and streamlining property listing workflows. During my internship at NoBrokerHood (PropTech unicorn), I shipped automated B2B sales outreach workflows capturing 25+ extra qualified leads/month and optimized search discovery logic for 1.5x output coverage. (I'm a 4th-year IT student at DTU, 9.3 CGPA, and in fact, this entire outreach system was researched and delivered autonomously by a system I built).\n\n"
+                        f"Would love to share a few actionable ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                        f"Let me know what time works best for you!"
+                    )
+                }
+            elif pitch_track in ("tech_pm", "non_tech_pm"):
+                return {
+                    "company_analysis": f"{clean_comp} scaling product workflows and user base.",
+                    "identified_pain_point": "Streamlining user activation and onboarding flows to convert growing traffic into daily active users",
+                    "expected_benefits": "faster time-to-first-value, higher onboarding completion rates, and sticky active user retention",
+                    "solution_approach": "designing frictionless user activation triggers and streamlining the core onboarding journey",
+                    "drafted_dm": (
+                        f"Hi {first_name},\n\n"
+                        f"Looking at how {clean_comp} is scaling its product workflows, a key priority is streamlining user activation and onboarding flows to convert growing traffic into daily active users.\n\n"
+                        f"Once this friction is resolved, the upside is immediate: faster time-to-first-value, higher onboarding completion rates, and turning casual signups into sticky active users without relying on manual handoffs.\n\n"
+                        f"I can help tackle this from a product standpoint by designing frictionless user activation triggers, streamlining the core onboarding journey, and running rapid conversion experiments. I've built 15+ end-to-end projects from scratch with an obsessive focus on exceptional UX and solving practical real-world problems. At NoBrokerHood as an AI PM Intern, I worked cross-functionally across engineering, design, and growth to ship automated B2B features capturing 25+ extra qualified leads/month and revamped search discovery logic for 1.5x output coverage. (I'm a 4th-year IT student at DTU, 9.3 CGPA, 4th rank in NMG Labs Agentic AI Hackathon, and in fact, this entire outreach system was researched and delivered autonomously by a product engine I built).\n\n"
+                        f"Would love to share a few actionable product ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                        f"Let me know what time works best for you!"
+                    )
+                }
+            else:  # Sales / Growth
+                return {
+                    "company_analysis": f"{clean_comp} expanding market presence and customer acquisition.",
+                    "identified_pain_point": "Maintaining a consistent outbound pipeline of qualified clients without rising acquisition costs",
+                    "expected_benefits": "higher lead-to-client conversion, reduced acquisition friction, and a predictable monthly revenue pipeline",
+                    "solution_approach": "implementing high-tempo outreach pipelines and conversion cadences to accelerate client acquisition",
+                    "drafted_dm": (
+                        f"Hi {first_name},\n\n"
+                        f"Looking at how {clean_comp} is expanding its market footprint, maintaining a consistent outbound pipeline of qualified clients without rising acquisition costs is a central growth driver.\n\n"
+                        f"Solving this directly accelerates business velocity: higher lead-to-client conversion, reduced acquisition friction, and a predictable monthly revenue pipeline.\n\n"
+                        f"I can help tackle this by implementing high-tempo outreach pipelines and conversion cadences to accelerate client acquisition. During my internship at NoBrokerHood, I executed outreach workflows that brought in 25+ extra qualified leads per month and accelerated deal closures through disciplined follow-ups. (I'm a 4th-year student at DTU, 9.3 CGPA).\n\n"
+                        f"Would love to share a few actionable ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                        f"Let me know what time works best for you!"
+                    )
+                }
+
+        # ── 3. Startup Fallback: Classic Problem-First / Friction-Resolution Flow ──
+        if pitch_track == "proptech_sales_tech":
+            return {
+                "company_analysis": f"{clean_comp} proptech platform and property operations.",
+                "identified_pain_point": "Property inquiry response latency and buyer qualification drop-offs",
+                "expected_benefits": "faster lead-to-viewing conversion, reduced sales response latency, and higher transaction velocity",
+                "solution_approach": "automating lead qualification cadences and streamlining property listing workflows",
+                "drafted_dm": (
+                    f"Hi {first_name},\n\n"
+                    f"Looking at how {clean_comp} is scaling property transactions, a critical operational friction in proptech is qualifying high-intent buyers and tenants before inquiries go cold.\n\n"
+                    f"Once this friction is resolved, the upside is immediate: faster lead-to-viewing conversion, reduced sales response latency, and turning search traffic into high-intent transactional pipeline without expanding headcount.\n\n"
+                    f"I can help tackle this from a sales and tech standpoint by automating high-intent buyer qualification cadences and streamlining property listing workflows. During my internship at NoBrokerHood (PropTech unicorn), I shipped automated B2B sales outreach workflows capturing 25+ extra qualified leads/month and optimized search discovery logic for 1.5x output coverage. (I'm a 4th-year IT student at DTU, 9.3 CGPA, and in fact, this entire outreach system was researched and delivered autonomously by a system I built).\n\n"
+                    f"Would love to share a few actionable ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                    f"Let me know what time works best for you!"
+                )
+            }
+        elif pitch_track == "property_sales":
+            return {
+                "company_analysis": f"{clean_comp} residential property and real estate operations.",
+                "identified_pain_point": "Capturing and converting high-intent property buyers before they engage competing brokers",
+                "expected_benefits": "higher viewing-to-close ratios, shorter sales cycle durations, and a predictable monthly pipeline of qualified buyers",
+                "solution_approach": "structuring disciplined outbound qualification cadences and rapid lead response workflows to ensure zero buyer leakage",
+                "drafted_dm": (
+                    f"Hi {first_name},\n\n"
+                    f"Looking at {clean_comp}'s portfolio in residential and property sales, a persistent challenge in high-end real estate is capturing and converting high-intent buyers before they engage competing brokers.\n\n"
+                    f"Solving this directly drives top-line revenue: higher viewing-to-close ratios, shorter sales cycle durations, and a predictable monthly pipeline of qualified buyers and tenants.\n\n"
+                    f"I can help drive this from a sales standpoint by structuring disciplined outbound qualification cadences and rapid lead response workflows to ensure zero buyer leakage. During my internship at NoBrokerHood, I drove B2B sales outreach workflows capturing 25+ extra qualified leads per month and accelerated deal closure timelines through proactive pipeline follow-ups. (I'm a 4th-year student at DTU, 9.3 CGPA).\n\n"
+                    f"Would love to share a few actionable ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                    f"Let me know what time works best for you!"
+                )
+            }
+        elif pitch_track == "non_tech_pm":
+            return {
+                "company_analysis": f"{clean_comp} customer product and digital operations.",
+                "identified_pain_point": "Customer drop-off between product discovery and completed checkout/booking",
+                "expected_benefits": "higher checkout completion rates, smoother customer onboarding, and fewer operational drop-offs",
+                "solution_approach": "mapping customer conversion funnels, redesigning catalog discovery flows, and running targeted user experience experiments",
+                "drafted_dm": (
+                    f"Hi {first_name},\n\n"
+                    f"Looking at how {clean_comp} is scaling its customer journey, a common friction point in consumer and operational platforms is drop-off between product discovery and completed checkout.\n\n"
+                    f"Once this friction is resolved, the upside is immediate: higher checkout completion rates, smoother customer onboarding, and fewer operational drop-offs without requiring manual customer support interventions.\n\n"
+                    f"I can help tackle this from a product standpoint by mapping user drop-off triggers, redesigning catalog discovery flows, and running targeted conversion experiments. I've built 15+ end-to-end projects from scratch with an obsessive focus on exceptional UX and solving practical real-world problems. During my internship at NoBrokerHood, I streamlined search and discovery flows to deliver 1.5x output coverage and shipped automated conversion features capturing 25+ extra qualified leads/month. (I'm a 4th-year student at DTU, 9.3 CGPA).\n\n"
+                    f"Would love to share a few actionable ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                    f"Let me know what time works best for you!"
+                )
+            }
+        elif pitch_track == "tech_pm":
+            return {
+                "company_analysis": f"{clean_comp} software platform and user workflows.",
+                "identified_pain_point": "User onboarding friction and activation drop-offs",
+                "expected_benefits": "faster time-to-first-value, higher Day-30 user retention, and compounding product-led activation",
+                "solution_approach": "designing streamlined activation triggers, instrumenting user journey telemetry, and running rapid conversion experiments",
+                "drafted_dm": (
+                    f"Hi {first_name},\n\n"
+                    f"Looking at how {clean_comp} is scaling its core product workflows, a critical product bottleneck is user onboarding friction and activation drop-offs before users reach the core 'aha' moment.\n\n"
+                    f"Once this friction is resolved, the upside is immediate: faster time-to-first-value, higher onboarding completion rates, and turning casual signups into sticky active users without relying on manual handoffs.\n\n"
+                    f"I can help tackle this from a product standpoint by designing frictionless user activation triggers, streamlining the core onboarding journey, and running rapid conversion experiments. I've built 15+ end-to-end projects from scratch with an obsessive focus on exceptional UX and solving practical real-world problems. At NoBrokerHood as an AI PM Intern, I worked cross-functionally across engineering, design, and growth to ship automated B2B features capturing 25+ extra qualified leads/month and revamped search discovery logic for 1.5x output coverage. (I'm a 4th-year IT student at DTU, 9.3 CGPA, 4th rank in NMG Labs Agentic AI Hackathon, and in fact, this entire outreach system was researched and delivered autonomously by a product engine I built).\n\n"
+                    f"Would love to share a few actionable product ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                    f"Let me know what time works best for you!"
+                )
+            }
+        elif pitch_track == "founders_office":
+            return {
+                "company_analysis": f"{clean_comp} early-stage product operations and growth.",
+                "identified_pain_point": "Bandwidth constraints across product UX iteration, early customer pipeline, and day-to-day zero-to-one execution",
+                "expected_benefits": "faster product iteration cycles, zero drop-off in early pipeline, and cross-functional operational velocity without adding headcount",
+                "solution_approach": "plugging into the Founder's Office as a high-agency generalist across product UX, customer acquisition, and operational workflows",
+                "drafted_dm": (
+                    f"Hi {first_name},\n\n"
+                    f"Looking at how {clean_comp} is scaling its zero-to-one operations, a recurring challenge for early founding teams is balancing high-level strategy with day-to-day execution across product UX, customer acquisition, and operational fires.\n\n"
+                    f"Having dedicated Founder's Office execution directly frees up leadership bandwidth: faster product UX iteration cycles, zero lead drop-off in early customer pipelines, and agile execution across cross-functional priorities without adding bulky headcount.\n\n"
+                    f"I can plug into the Founder's Office as a high-agency generalist to tackle product user experience, customer outreach pipelines, or operational workflows. I've built 15+ end-to-end projects from scratch with an obsessive focus on exceptional UX and solving practical real-world problems. During my internship at NoBrokerHood, I shipped automated B2B sales outreach capturing 25+ extra leads/month and optimized discovery logic for 1.5x output coverage. (I'm a 4th-year student at DTU, 9.3 CGPA).\n\n"
+                    f"Would love to share a few actionable ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                    f"Let me know what time works best for you!"
+                )
+            }
+        else:  # non_tech_growth_sales
+            if geo_segment == "india":
+                p3 = (
+                    f"I can help tackle this from a sales standpoint by implementing high-tempo outbound outreach cadences and structured prospect follow-ups. "
+                    f"During my internship at NoBrokerHood, I executed outreach workflows that brought in 25+ extra qualified leads per month. "
+                    f"Additionally, I've personally driven corporate sponsorships for our college society fest, closing ₹3–10 Lakh deals each year through disciplined cold outbound pitching and deal negotiations. "
+                    f"(I'm a 4th-year student at DTU, 9.3 CGPA)."
+                )
+            else:
+                p3 = (
+                    f"I can help tackle this by implementing high-tempo outreach pipelines and conversion cadences to accelerate client acquisition. "
+                    f"During my internship at NoBrokerHood, I executed outreach workflows that brought in 25+ extra qualified leads per month and streamlined pipeline conversions. "
+                    f"(I'm a 4th-year student at DTU, 9.3 CGPA)."
+                )
+            return {
+                "company_analysis": f"{clean_comp} business operations and customer growth.",
+                "identified_pain_point": "Maintaining a predictable outbound pipeline of qualified clients without high customer acquisition costs",
+                "expected_benefits": "higher lead-to-client conversion, reduced acquisition friction, and a predictable monthly revenue pipeline",
+                "solution_approach": "implementing high-tempo outreach pipelines and conversion cadences to accelerate client acquisition",
+                "drafted_dm": (
+                    f"Hi {first_name},\n\n"
+                    f"Looking at how {clean_comp} is expanding its market presence, a central growth hurdle is maintaining a consistent outbound pipeline of qualified clients without high customer acquisition costs.\n\n"
+                    f"Solving this directly accelerates business velocity: higher lead-to-client conversion, reduced acquisition friction, and a predictable monthly revenue pipeline.\n\n"
+                    f"{p3}\n\n"
+                    f"Would love to share a few actionable ideas on a quick 10-12 min call this week if you're open to it. You can check my resume and a quick brief about me here: {self.resume_link}\n\n"
+                    f"Let me know what time works best for you!"
+                )
+            }
 
     def draft_single_lead(
         self,
@@ -183,8 +773,9 @@ class GhostwriterAgent:
     ) -> dict:
         """
         Dedicated 1-by-1 deep-dive company analysis & DM drafting for a verified lead.
-        Runs Gemini with model cascade and rotation.
-        Returns a dict containing 'company_analysis', 'identified_pain_point', 'grounded_vision', and 'drafted_dm'.
+        Enforces multi-track positioning (Proptech, Property Sales, Tech PM, Non-Tech PM, Non-Tech Growth, Founder's Office)
+        and tier-specific messaging (Enterprise/Big Giants, Mid-Level/Scale-ups, Startups)
+        with strict AI disclosure, Hackathon, and college fest rules.
         """
         name = lead.get("name", "Unknown")
         company = lead.get("company", "Unknown")
@@ -194,28 +785,37 @@ class GhostwriterAgent:
         first_name = clean_first_name(name)
         clean_comp = clean_company_name(company)
 
-        # Cohort-specific opening logic with varied, high-agency hook options
-        is_bt = self.is_big_tech(lead)
-        if is_bt:
-            cohort_p1_inst = (
-                f"- For the hook opener, choose naturally between:\n"
-                f"  Option 1: \"I've been following {clean_comp}'s work in [mention specific product area or team from their headline/experience], "
-                f"but I am actually curious about [mention a specific operational or product trade-off in their area] "
-                f"and what you guys are doing to handle this.\"\n"
-                f"  Option 2: \"I've been tracking what your team at {clean_comp} is building around [specific product area], "
-                f"and I'm really curious about how you balance [specific operational trade-off or challenge] at that scale.\""
-            )
-        else:
-            cohort_p1_inst = (
-                f"- For the hook opener, choose naturally among these 3 high-agency opening styles (DO NOT always use the same formula across leads):\n"
-                f"  Style A (Potential & Curiosity): \"{clean_comp} has huge potential, but I am actually curious about [mention a specific, real operational pain point or challenge in their product/domain] "
-                f"and what you guys are doing to handle this.\"\n"
-                f"  Style B (Product Observation & Approach): \"I've been closely tracking what {clean_comp} is building, and I'm really curious about how your team approaches [mention a specific, real operational pain point or challenge in their product/domain] "
-                f"and how you guys are tackling that.\"\n"
-                f"  Style C (Execution Bottleneck): \"What {clean_comp} is building is super exciting, but one operational hurdle that stands out is [mention a specific, real operational pain point or challenge in their product/domain]—how is your team currently handling this?\""
-            )
+        # Resolve geo segment, pitch track, and company tier
+        geo_segment = self._infer_geo_segment(lead)
+        lead["geo_segment"] = geo_segment
+
+        pitch_track = self._infer_pitch_track(lead, top_card_text, scraped_experience)
+        lead["pitch_track"] = pitch_track
+        track_cfg = TRACK_CONFIGS.get(pitch_track, TRACK_CONFIGS["tech_pm"])
+
+        company_tier = self._infer_company_tier(lead)
+        lead["company_tier"] = company_tier
+        tier_cfg = TIER_INSTRUCTIONS.get(company_tier, TIER_INSTRUCTIONS["startup"])
+
+        tier_messaging_instruction = tier_cfg["guidance"].format(clean_company=clean_comp)
+
+        # Select p1, p2, p3 instructions based on tier:
+        # If enterprise or mid_level provides tier-specific styles, use them; otherwise use track_cfg defaults
+        p1_inst = tier_cfg["p1_style"].format(first_name=first_name, clean_company=clean_comp) if tier_cfg.get("p1_style") else track_cfg["p1_instruction"].format(clean_company=clean_comp)
+        p2_inst = tier_cfg["p2_style"].format(clean_company=clean_comp) if tier_cfg.get("p2_style") else track_cfg["p2_instruction"]
+        p3_inst = tier_cfg["p3_style"].format(clean_company=clean_comp) if tier_cfg.get("p3_style") else track_cfg["p3_instruction"]
 
         prompt = DEEP_DIVE_RESEARCH_PROMPT.format(
+            track_title=track_cfg["title"],
+            role_pitch=track_cfg["role_pitch"],
+            geo_segment=geo_segment.upper(),
+            company_tier=company_tier.upper(),
+            background_summary=track_cfg["background_summary"],
+            focus_instruction=track_cfg["focus_instruction"],
+            tier_messaging_instruction=tier_messaging_instruction,
+            p1_instruction=p1_inst,
+            p2_instruction=p2_inst,
+            p3_instruction=p3_inst,
             lead_name=name,
             first_name=first_name,
             lead_company=company,
@@ -223,14 +823,13 @@ class GhostwriterAgent:
             lead_role=role,
             top_card_text=top_card_text.strip() if top_card_text else "Not available",
             scraped_experience=scraped_experience.strip() if scraped_experience else "Not available",
-            cohort_p1_instruction=cohort_p1_inst,
             resume_link=self.resume_link,
         )
 
         data = {}
         try:
             from utils.gemini_client import generate_with_rotation
-            model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
             resp_text = generate_with_rotation(prompt, model=model_name)
 
             match = re.search(r"```json\s*([\s\S]+?)\s*```", resp_text)
@@ -239,45 +838,48 @@ class GhostwriterAgent:
             else:
                 data = json.loads(resp_text.strip())
         except Exception as e:
-            console.print(f"  [yellow]  ⚠ Gemini drafting error for {name}: {e}. Using grounded fallback.[/yellow]")
-            # Deterministic opener rotation based on name hash
-            h = abs(hash(name)) % 3
-            if h == 0:
-                p1_opener = f"{clean_comp} has huge potential, but I am actually curious about automating outbound pipeline and user activation and what you guys are doing to handle this."
-            elif h == 1:
-                p1_opener = f"I've been closely tracking what {clean_comp} is building, and I'm really curious about how your team approaches scaling outbound pipelines and activation loops."
-            else:
-                p1_opener = f"What {clean_comp} is building is super exciting, but one operational hurdle that stands out is automating outbound pipeline and user activation—how is your team currently handling this?"
+            console.print(f"  [yellow]  ⚠ Gemini drafting error for {name} ({pitch_track} - {company_tier}): {e}. Using track-specific fallback.[/yellow]")
+            data = self._generate_fallback(pitch_track, first_name, clean_comp, geo_segment=geo_segment, company_tier=company_tier)
 
-            data = {
-                "company_analysis": f"{clean_comp} platform operations.",
-                "identified_pain_point": "Scaling automated outbound pipeline and user activation",
-                "grounded_vision": "streamline operational efficiency and user growth",
-                "drafted_dm": (
-                    f"Hi {first_name},\n\n"
-                    f"{p1_opener} "
-                    f"See, {clean_comp} has the potential to streamline operational efficiency and user growth, and getting this right could really accelerate product adoption.\n\n"
-                    f"I can actually help you guys achieve this. I am a 4th-year student at DTU (9.3 CGPA) and former AI PM Intern at NoBrokerHood, "
-                    f"where I worked cross-functionally across engineering, product, and sales to build automated B2B engines capturing 25+ extra qualified leads a month, "
-                    f"and optimized search algorithms to do 1.5x output within the same constraints. I also ranked 4th in NMG Labs' Agentic AI Hackathon. "
-                    f"In fact, this message was researched and delivered by an autonomous system I built to test product execution live.\n\n"
-                    f"Let's do a quick 12-min call where we can discuss this and see how it matches both of us. You can check my resume and get a quick brief about me here: {self.resume_link}\n\n"
-                    f"Let me know a good time for us to do a meet!"
-                )
-            }
-
-        # Deterministic enforcement: replace any hallucinated or typo'd Google Drive folder URL with exact verified resume_link
         dm = data.get("drafted_dm", "")
+
+        # ── Deterministic Safety Guard: Scrub AI Disclosure & Hackathon mentions if forbidden ──
+        if not track_cfg["ai_disclosure_allowed"]:
+            dm = re.sub(r'[^.\n]*?\b(?:in fact,?\s*this entire outreach|outreach system was researched|delivered autonomously|autonomous|bot|ai system|ai engine)[^.\n]*?(?:\.|\n|$)', '', dm, flags=re.IGNORECASE)
+
+        if not track_cfg["hackathon_allowed"]:
+            dm = re.sub(r'[^.\n]*?\b(?:hackathon|agentic ai)[^.\n]*?(?:\.|\n|$)', '', dm, flags=re.IGNORECASE)
+
+        # ── Deterministic Safety Guard: College fest deals ONLY for Indian sales companies ──
+        # Strictly scrub from PropTech, Property, Tech PM, Non-Tech PM, and any foreign leads
+        is_indian_sales = (pitch_track in ("non_tech_growth_sales", "founders_office")) and (geo_segment == "india")
+        if not is_indian_sales or pitch_track in ("proptech_sales_tech", "property_sales", "tech_pm", "non_tech_pm"):
+            dm = re.sub(r'[^.\n]*?\b(?:college\s+society|society\s+fest|\bfest\b|corporate\s+sponsorships?|lakh\s+deals?|3[-–to\s]+10\s*lakh|₹?\s*3\s*[-–to]\s*10\s*lakh)[^.\n]*?(?:\.|\n|$)', '', dm, flags=re.IGNORECASE)
+
+        # Cleanup formatting artifacts: double horizontal spaces, dangling commas/parentheses
+        dm = re.sub(r'\(\s*,?\s*\)', '', dm)
+        dm = re.sub(r',\s*\.', '.', dm)
+        dm = re.sub(r'[^\S\r\n]{2,}', ' ', dm)
+        dm = re.sub(r'\r\n', '\n', dm)
+        dm = re.sub(r'\n{3,}', '\n\n', dm)
+
+        # Deterministic enforcement: ensure exact resume_link
         if self.resume_link and self.resume_link != "[ADD_YOUR_RESUME_LINK_HERE]":
             dm = re.sub(r'https?://drive\.google\.com/drive/folders/[a-zA-Z0-9_-]+', self.resume_link, dm)
-            data["drafted_dm"] = dm
+
+        data["drafted_dm"] = dm.strip()
 
         lead["connection_note"] = ""
         lead["note_length"] = 0
-        lead["drafted_dm"] = dm
+        lead["pitch_track"] = pitch_track
+        lead["geo_segment"] = geo_segment
+        lead["company_tier"] = company_tier
+        lead["drafted_dm"] = data["drafted_dm"]
         lead["company_analysis"] = data.get("company_analysis", "")
         lead["identified_pain_point"] = data.get("identified_pain_point", "")
-        lead["grounded_vision"] = data.get("grounded_vision", "")
+        lead["expected_benefits"] = data.get("expected_benefits", "")
+        lead["solution_approach"] = data.get("solution_approach", "")
+        lead["grounded_vision"] = data.get("expected_benefits", "")
 
         return data
 
@@ -324,6 +926,8 @@ class GhostwriterAgent:
                 console.print(Panel(
                     f"[bold]{name}[/bold] @ {lead.get('company', '?')}\n\n"
                     f"[bold yellow]Identified Bottleneck:[/bold yellow] {lead.get('identified_pain_point')}\n"
+                    f"[bold yellow]Expected Benefits:[/bold yellow] {lead.get('expected_benefits')}\n"
+                    f"[bold yellow]Solution Approach:[/bold yellow] {lead.get('solution_approach')}\n"
                     f"[bold yellow]Company Analysis:[/bold yellow] {lead.get('company_analysis')}\n\n"
                     f"[bold yellow]DM:[/bold yellow]\n[green]{lead.get('drafted_dm')}[/green]",
                     title=f"Draft #{len(enriched)}", border_style="blue",

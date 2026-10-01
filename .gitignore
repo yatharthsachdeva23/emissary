@@ -5,8 +5,8 @@ credentials.json
 
 # Logs and runtime data
 logs/
-data/leads_today.json
-data/seen_profiles.json
+data/*.json
+data/
 logs/task_def.xml
 
 # Python
@@ -49,5 +49,12 @@ data/my_profile.json
 data/my_profile*.json
 data/prompt_instructions.json
 project portfolio.pdf
+scratch/
+find_urls.py
+inject_custom_leads.py
+log_varun.py
+redraft_undrafted.py
+data/raw_leads_today.json
+data/history/
 
 

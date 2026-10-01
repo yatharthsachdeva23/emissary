@@ -52,31 +52,38 @@ class SheetsClient:
             )
             return
 
-        try:
-            import gspread
-            from google.oauth2.service_account import Credentials
-
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive",
-            ]
-            creds = Credentials.from_service_account_file(str(CREDS_PATH), scopes=scopes)
-            gc = gspread.authorize(creds)
-            self._gc = gc
-            spreadsheet = gc.open_by_key(sheet_id)
-            self._spreadsheet = spreadsheet
-
-            # Use first sheet or create "Emissary CRM" tab
+        import time
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
             try:
-                self._sheet = spreadsheet.worksheet("Emissary CRM")
-            except gspread.WorksheetNotFound:
-                self._sheet = spreadsheet.add_worksheet("Emissary CRM", rows=1000, cols=12)
-                self._sheet.append_row(HEADERS)
-                console.print("[green]✓ Created 'Emissary CRM' sheet with headers[/green]")
+                import gspread
+                from google.oauth2.service_account import Credentials
 
-        except Exception as e:
-            console.print(f"[red]Sheets setup error: {e}[/red]")
-            self._sheet = None
+                scopes = [
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/drive",
+                ]
+                creds = Credentials.from_service_account_file(str(CREDS_PATH), scopes=scopes)
+                gc = gspread.authorize(creds)
+                self._gc = gc
+                spreadsheet = gc.open_by_key(sheet_id)
+                self._spreadsheet = spreadsheet
+
+                # Use first sheet or create "Emissary CRM" tab
+                try:
+                    self._sheet = spreadsheet.worksheet("Emissary CRM")
+                except gspread.WorksheetNotFound:
+                    self._sheet = spreadsheet.add_worksheet("Emissary CRM", rows=1000, cols=12)
+                    self._sheet.append_row(HEADERS)
+                    console.print("[green]✓ Created 'Emissary CRM' sheet with headers[/green]")
+                break
+            except Exception as e:
+                if attempt < max_attempts:
+                    console.print(f"[yellow]⚠ Sheets setup attempt {attempt} failed ({e}). Retrying in 2s...[/yellow]")
+                    time.sleep(2.0)
+                else:
+                    console.print(f"[red]Sheets setup error: {e}[/red]")
+                    self._sheet = None
 
     @property
     def available(self) -> bool:

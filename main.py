@@ -88,6 +88,8 @@ def parse_args() -> dict:
         "skip_send":      "--skip-send" in args,
         "ghost_run":      "--ghost-run" in args,
         "resume":         "--resume" in args,
+        "remote":         "--remote" in args,
+        "skip_discovery": "--skip-discovery" in args,
     }
 
 
@@ -206,17 +208,32 @@ def main():
             console.print("[dim]Skipping feedback loop[/dim]")
 
         # ── Step 2: Inbox Agent (The Closer) ────────────────────────
-        if not flags["dry_run"] and not flags["skip_send"] and not flags.get("resume"):
+        if not flags["dry_run"] and not flags["skip_send"] and not flags.get("resume") and not flags.get("skip_discovery"):
             from agents.inbox_agent import InboxAgent
             inbox = InboxAgent()
-            inbox_summary = inbox.run(ghost_run=flags["ghost_run"])
+            inbox_summary = inbox.run(ghost_run=flags["ghost_run"], remote=flags.get("remote", False))
             run_summary["dms_sent"] = inbox_summary.get("dm_sent", 0)
         else:
-            console.print("[dim]Skipping Inbox Agent (dry-run, skip-send, or resume)[/dim]")
+            console.print("[dim]Skipping Inbox Agent (dry-run, skip-send, skip-discovery, or resume)[/dim]")
 
         # ── Step 3 & 4: Discovery & Ghostwriter (or Resume) ────────────
         leads = []
-        if flags.get("resume"):
+        if flags.get("skip_discovery"):
+            if LEADS_PATH.exists():
+                try:
+                    with open(LEADS_PATH, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        leads = data.get("leads", [])
+                    console.print(f"[bold green]▶ --skip-discovery: Loaded {len(leads)} qualified leads from {LEADS_PATH.name}.[/bold green]")
+                    run_summary["leads_discovered"] = len(leads)
+                except Exception as e:
+                    console.print(f"[bold red]Error loading {LEADS_PATH}: {e}[/bold red]")
+                    return
+            else:
+                console.print(f"[bold red]--skip-discovery requested but {LEADS_PATH} does not exist.[/bold red]")
+                return
+
+        elif flags.get("resume"):
             has_scored_leads = False
             # Sub-case A: Check for already scored leads in LEADS_PATH
             if LEADS_PATH.exists():
@@ -282,6 +299,7 @@ def main():
                     test_mode=flags["test_mode"],
                     ghost_run=flags["ghost_run"],
                     profile=profile,
+                    remote=flags.get("remote", False),
                 )
             except KeyboardInterrupt:
                 # Grab whatever the messenger managed to process

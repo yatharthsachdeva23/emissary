@@ -90,8 +90,17 @@ class InboxAgent:
             console.print("[red]Playwright not installed. Run: pip install playwright playwright-stealth[/red]")
             sys.exit(1)
 
-    def _load_session_context(self, playwright):
-        """Load saved session cookies into a new browser context."""
+    def _load_session_context(self, playwright, remote: bool = False):
+        """Load saved session cookies into a new browser context, or connect to remote Chrome if requested."""
+        if remote:
+            try:
+                browser = playwright.chromium.connect_over_cdp("http://localhost:9222")
+                context = browser.contexts[0] if browser.contexts else browser.new_context()
+                console.print("[bold green]✓ InboxAgent connected to remote Chrome on port 9222 (CDP mode)![/bold green]")
+                return browser, context, True
+            except Exception as e:
+                console.print(f"[yellow]Could not connect to remote Chrome on port 9222 ({e}). Falling back to local session launch.[/yellow]")
+
         if not SESSION_PATH.exists():
             console.print("[red]No session found. Run: py -3.12 main.py --setup-session[/red]")
             sys.exit(1)
@@ -119,7 +128,15 @@ class InboxAgent:
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
             window.chrome = { runtime: {} };
         """)
-        return browser, context
+        return browser, context, False
+
+    def _save_session(self, context):
+        """Save latest session cookies to prevent staleness on session rotation."""
+        try:
+            context.storage_state(path=str(SESSION_PATH))
+            console.print("[dim]✓ Saved updated session cookies to data/linkedin_session.json[/dim]")
+        except Exception:
+            pass
 
     def _human_sleep(self, min_s: float = 3.0, max_s: float = 8.0):
         """Strictly jittered sleep between every Playwright action."""
@@ -542,7 +559,13 @@ class InboxAgent:
             except Exception:
                 pass
 
-            message_btn.scroll_into_view_if_needed()
+            try:
+                page.evaluate("el => el && el.scrollIntoView({block: 'center', inline: 'nearest'})", message_btn)
+            except Exception:
+                try:
+                    message_btn.scroll_into_view_if_needed(timeout=1500)
+                except Exception:
+                    pass
             page.evaluate("window.scrollBy(0, -100)")
             page.wait_for_timeout(400)
             
@@ -590,7 +613,13 @@ class InboxAgent:
                 return False
 
             # Scroll the compose box into view before interacting.
-            compose_box.scroll_into_view_if_needed()
+            try:
+                page.evaluate("el => el && el.scrollIntoView({block: 'center', inline: 'nearest'})", compose_box)
+            except Exception:
+                try:
+                    compose_box.scroll_into_view_if_needed(timeout=1500)
+                except Exception:
+                    pass
             page.wait_for_timeout(400)
 
             # Extra slight wait to ensure the chat box React state is fully initialized
@@ -645,7 +674,13 @@ class InboxAgent:
                         visible_btns = [b for b in btns if b.is_visible()]
                         if visible_btns:
                             btn = visible_btns[-1]
-                            btn.scroll_into_view_if_needed()
+                            try:
+                                page.evaluate("el => el && el.scrollIntoView({block: 'center', inline: 'nearest'})", btn)
+                            except Exception:
+                                try:
+                                    btn.scroll_into_view_if_needed(timeout=1500)
+                                except Exception:
+                                    pass
                             btn.click(force=True)
                             sent = True
                             break
@@ -658,26 +693,90 @@ class InboxAgent:
             if not sent:
                 page.keyboard.press("Control+Enter")
 
-            self._human_sleep(2, 4)
+            # ── Verification: Multi-layer ground-truth check (chat history + compose box) ──
+            # Prevents false negatives from LinkedIn placeholder text ("Write a message...")
+            # and asynchronous WebSocket latency, eliminating duplicate DM retries.
+            dm_clean = dm.strip()
+            dm_snippet = dm_clean[:25].strip().lower()
+            verified_sent = False
 
-            # Verification: box should be empty or gone after a successful send
-            try:
-                final_text = compose_box.inner_text().strip()
-                if final_text and len(final_text) > 5:
-                    console.print(f"  [red]  ✘ DM verification failed for {name}. Message still in box.[/red]")
-                    return False
-            except Exception:
-                pass  # Box being detached/gone is a success signal
+            # Poll for up to 6 seconds (polling every 1s)
+            for _ in range(6):
+                # 1. Ground truth check: Did the message appear in conversation history?
+                history_selectors = [
+                    ".msg-s-message-list",
+                    ".msg-s-event-listitem",
+                    ".msg-s-message-group",
+                    ".msg-s-message-list-content",
+                    ".msg-overlay-conversation-bubble",
+                ]
+                for h_sel in history_selectors:
+                    try:
+                        h_texts = page.locator(h_sel).all_inner_texts()
+                        combined = " ".join(h_texts).lower()
+                        if dm_snippet and dm_snippet in combined:
+                            verified_sent = True
+                            break
+                    except Exception:
+                        pass
+                if verified_sent:
+                    break
 
-                
+                # 2. Compose box check: Is the compose box empty or showing placeholder?
+                try:
+                    if not compose_box.is_visible():
+                        # Box closed or detached -> success
+                        verified_sent = True
+                        break
+                    final_text = compose_box.inner_text().strip()
+                    final_lower = final_text.lower()
+                    # If empty:
+                    if not final_text:
+                        verified_sent = True
+                        break
+                    # If placeholder text (LinkedIn displays 'Write a message...' inside empty contenteditable):
+                    placeholder_phrases = ["write a message", "type a message", "write a note"]
+                    is_placeholder = any(p in final_lower for p in placeholder_phrases)
+                    if is_placeholder and (not dm_snippet or dm_snippet not in final_lower):
+                        verified_sent = True
+                        break
+                except Exception:
+                    # Box being detached/gone is a success signal
+                    verified_sent = True
+                    break
+
+                page.wait_for_timeout(1000)
+
+            if not verified_sent:
+                # Double check if dm_snippet is genuinely still sitting in the box
+                try:
+                    final_text = compose_box.inner_text().strip()
+                    if dm_snippet and dm_snippet in final_text.lower():
+                        console.print(f"  [red]  ✘ DM verification failed for {name}. Message still in box.[/red]")
+                        return False
+                except Exception:
+                    pass
+
             console.print(f"  [green]  ✓ DM sent to {name}[/green]")
+
+            # Clean up: close the conversation overlay so it doesn't linger or interfere with next tasks
+            try:
+                close_btn = page.locator(".msg-overlay-bubble-header__control--close, button[data-control-name='overlay.close_conversation_window'], button[aria-label*='Close conversation']").first
+                if close_btn.is_visible(timeout=800):
+                    close_btn.click(timeout=1000)
+            except Exception:
+                try:
+                    page.keyboard.press("Escape")
+                except Exception:
+                    pass
+
             return True
 
         except Exception as e:
             console.print(f"  [red]  DM error for {name}: {e}[/red]")
             return False
 
-    def run(self, ghost_run: bool = False) -> dict:
+    def run(self, ghost_run: bool = False, remote: bool = False) -> dict:
         """
         Full inbox agent run. Returns summary dict.
         """
@@ -690,7 +789,7 @@ class InboxAgent:
         sync_playwright, Stealth_cls = self._get_playwright()
 
         with sync_playwright() as p:
-            browser, context = self._load_session_context(p)
+            browser, context, is_remote = self._load_session_context(p, remote=remote)
             page = context.new_page()
             Stealth_cls().apply_stealth_sync(page)
 
@@ -700,7 +799,12 @@ class InboxAgent:
 
             if not scraped_conns:
                 console.print("[yellow]No connections scraped. Skipping Closer phase.[/yellow]")
-                browser.close()
+                self._save_session(context)
+                if not is_remote:
+                    try:
+                        browser.close()
+                    except Exception:
+                        pass
                 return summary
 
             console.print(f"[cyan]  Scraped {len(scraped_conns)} recent connections[/cyan]")
@@ -711,7 +815,12 @@ class InboxAgent:
 
             if not queue:
                 console.print("[dim]  No new acceptances today. Closer phase done.[/dim]")
-                browser.close()
+                self._save_session(context)
+                if not is_remote:
+                    try:
+                        browser.close()
+                    except Exception:
+                        pass
                 return summary
 
             console.print(f"[green]  → {len(queue)} new acceptance(s) found! Sending DMs...[/green]")
@@ -764,10 +873,12 @@ class InboxAgent:
             except KeyboardInterrupt:
                 console.print("\n[yellow]Closer interrupted by user. Stopping DM sending immediately...[/yellow]")
 
-            try:
-                browser.close()
-            except Exception:
-                pass
+            self._save_session(context)
+            if not is_remote:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
 
         console.print(
             f"\n[bold green]Closer done:[/bold green] "

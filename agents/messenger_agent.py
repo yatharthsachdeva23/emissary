@@ -41,6 +41,7 @@ from utils.safety import (
 )
 from utils.notifier import notify_abort, notify_done, notify_session_expired
 from utils.text_cleaner import clean_first_name
+from utils.network import is_internet_available, is_network_error, wait_for_network_recovery
 
 load_dotenv()
 console = Console()
@@ -160,8 +161,17 @@ class MessengerAgent:
                     pass
                 return False
 
-    def _load_session_context(self, playwright):
-        """Load saved session cookies into a new browser context."""
+    def _load_session_context(self, playwright, remote: bool = False):
+        """Load saved session cookies into a new browser context, or connect to remote Chrome if requested."""
+        if remote:
+            try:
+                browser = playwright.chromium.connect_over_cdp("http://localhost:9222")
+                context = browser.contexts[0] if browser.contexts else browser.new_context()
+                console.print("[bold green]✓ MessengerAgent connected to remote Chrome on port 9222 (CDP mode)![/bold green]")
+                return browser, context, True
+            except Exception as e:
+                console.print(f"[yellow]Could not connect to remote Chrome on port 9222 ({e}). Falling back to local session launch.[/yellow]")
+
         if not SESSION_PATH.exists():
             console.print("[red]No session found. Run: python main.py --setup-session[/red]")
             sys.exit(1)
@@ -192,7 +202,15 @@ class MessengerAgent:
             window.chrome = { runtime: {} };
         """)
 
-        return browser, context
+        return browser, context, False
+
+    def _save_session(self, context):
+        """Save latest session cookies to prevent staleness on session rotation."""
+        try:
+            context.storage_state(path=str(SESSION_PATH))
+            console.print("[dim]✓ Saved updated session cookies to data/linkedin_session.json[/dim]")
+        except Exception:
+            pass
 
     def _check_session_valid(self, page) -> bool:
         """Check if the saved session is still valid and detect the regional LinkedIn domain."""
@@ -266,9 +284,14 @@ class MessengerAgent:
 
     def _visit_profile(self, page, url: str) -> bool:
         """Visit a LinkedIn profile, scroll naturally, then return True if successful."""
-        from utils.network import is_network_error, wait_for_network_recovery
         for attempt in range(2):
             try:
+                # Pre-navigation network check
+                if not is_internet_available():
+                    console.print("[yellow]⚠ Internet disconnected before loading profile. Waiting for Wi-Fi recovery (Checking every 30s, max 10 mins)...[/yellow]")
+                    if not wait_for_network_recovery(max_wait_seconds=600, check_interval_seconds=30):
+                        return False
+
                 url = self._normalize_linkedin_url(url)
                 page.goto(url, wait_until="domcontentloaded", timeout=60000)
                 human_sleep(2, 4, "Page load wait")
@@ -311,7 +334,7 @@ class MessengerAgent:
                 return True
 
             except Exception as e:
-                if is_network_error(e) and attempt == 0:
+                if is_network_error(e):
                     console.print("[yellow]⚠ Internet dropped while loading LinkedIn profile. Waiting for Wi-Fi recovery (Checking every 30s, max 10 mins)...[/yellow]")
                     if wait_for_network_recovery(max_wait_seconds=600, check_interval_seconds=30):
                         continue
@@ -486,9 +509,18 @@ class MessengerAgent:
                 exp_section = page.locator("section:has(span:has-text('Experience'))").first
 
             if exp_section.is_visible(timeout=2000):
-                exp_section.scroll_into_view_if_needed()
+                try:
+                    page.evaluate("el => el && el.scrollIntoView({block: 'center', inline: 'nearest'})", exp_section)
+                except Exception:
+                    try:
+                        exp_section.scroll_into_view_if_needed(timeout=1500)
+                    except Exception:
+                        pass
                 human_sleep(1.0, 1.8, "Viewing Experience Section")
-                scraped_experience = exp_section.inner_text().strip()
+                try:
+                    scraped_experience = exp_section.inner_text(timeout=2000).strip()
+                except Exception:
+                    scraped_experience = ""
                 # Scroll back to top after reading experience so top-card buttons are in view
                 try:
                     page.evaluate("window.scrollTo(0, 0)")
@@ -516,7 +548,7 @@ class MessengerAgent:
             from utils.gemini_client import generate_with_rotation
 
             verification_prompt = f"""You are a professional profile verification engine for Yatharth's outreach system.
-Yatharth is a 4th-year student at Delhi Technological University (DTU, 9.3 CGPA) and former AI PM Intern at NoBrokerHood, seeking a PM/APM intern role at high-growth startups or tech companies.
+Yatharth is a 4th-year student at Delhi Technological University (DTU, 9.3 CGPA) and former Intern at NoBrokerHood, seeking an internship across Product Management, B2B Sales, Growth, or Tech at high-growth startups (including Proptech, Property, and Tech ventures in Dubai, New York, and India).
 
 TARGET LEAD DETAILS FROM SEARCH:
 - Name: {name}
@@ -537,7 +569,7 @@ YOUR TASKS:
 1. Identify the person's CURRENT ACTIVE job(s) from the scraped Experience and Top Card text.
    CRITICAL DATE RULE: A job is ONLY current/active if its date range explicitly ends in "- Present", "Present", or if it is currently listed as their current company badge in the top card. If a job has a completed date range like "Nov 2022 - Jan 2026" or "2021 - 2024", IT IS A COMPLETED PAST ROLE AND MUST NOT BE SELECTED AS THEIR CURRENT COMPANY!
 2. Resolve multiple "Present" jobs:
-   - Operating vs Passive: Ignore roles like "Investor", "Advisor", "Consultant", "Mentor", or "Board Member". Focus on their core operational role (Founder, Co-Founder, VP, Head of Product, Director, PM, Engineering Lead, etc.).
+   - Operating vs Passive: Ignore roles like "Investor", "Advisor", "Consultant", "Mentor", or "Board Member". Focus on their core operational role (Founder, Co-Founder, CEO, VP, Head of Product, Head of Sales, VP Sales, Commercial Director, Managing Director, Director, PM, Engineering Lead, etc.).
    - Incremental/Recent: If they have multiple operating roles, pick the one that started most recently.
 3. Compare this resolved current company with the expected company ("{target_company}").
    Company variations such as "Razorpay" vs "Razorpay Software Pvt Ltd" or "Flipkart" vs "Flipkart Internet" ARE THE SAME COMPANY (is_same_company = true).
@@ -562,7 +594,8 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
   "current_position": "Resolved current job title/position"
 }}
 """
-            resp_text = generate_with_rotation(verification_prompt)
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+            resp_text = generate_with_rotation(verification_prompt, model=model_name)
             match = re.search(r"```json\s*([\s\S]+?)\s*```", resp_text)
             if match:
                 res_data = json.loads(match.group(1))
@@ -633,9 +666,11 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         parentSection = parentSection.parentElement;
                     }
 
-                    // 3. Positional check (main profile top card action buttons are always at top-left)
+                    // 3. Positional check (main profile top card action buttons are within the main column)
                     const r = el.getBoundingClientRect();
-                    if (r.x > 750 || r.y > 800) return false;
+                    // In a 1280px viewport, top card action buttons (Follow, Message, More) can reach x=950.
+                    // The sidebar aside starts past x=960. Expand y bound to 1200 for tall top cards / slower hydration.
+                    if (r.x > 960 || r.y > 1200) return false;
                     if (r.width === 0 || r.height === 0) return false;
 
                     return true;
@@ -657,7 +692,17 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                 # 0. Always reset page scroll to top so the profile top card is guaranteed in viewport
                 try:
                     page.evaluate("window.scrollTo(0, 0)")
-                    page.wait_for_timeout(600 if attempt == 1 else 1200)
+                    page.wait_for_timeout(1000 if attempt == 1 else 1800)
+                except Exception:
+                    pass
+
+                # Dismiss any lingering chat overlays / bubbles so they never intercept clicks or get mistaken for connection modals
+                try:
+                    page.evaluate("""
+                        () => {
+                            document.querySelectorAll('.msg-overlay-bubble-header__control--close, .msg-overlay-conversation-bubble [data-control-name="overlay.close_conversation_window"]').forEach(el => el.click());
+                        }
+                    """)
                 except Exception:
                     pass
 
@@ -681,6 +726,8 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                     search_area = page.locator(".scaffold-layout__main-column, main").first
 
                 connect_btn = None
+                dropdown_clicked = False
+                is_from_dropdown = False
 
                 # Priority 1: Direct Connect button visible on the top card
                 direct_selectors = [
@@ -706,7 +753,6 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         continue
 
                 # Priority 2: If not directly visible, check the single "More" actions dropdown in the top card
-                is_from_dropdown = False
                 if not connect_btn:
                     more_selectors = [
                         "button[aria-label='More actions']",
@@ -731,59 +777,110 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
 
                     if more_btn:
                         try:
-                            more_btn.scroll_into_view_if_needed()
+                            try:
+                                more_btn.evaluate("el => el.scrollIntoView({block: 'center', inline: 'nearest'})", timeout=1500)
+                            except Exception:
+                                more_btn.scroll_into_view_if_needed(timeout=1500)
                             page.evaluate("window.scrollBy(0, -100)")
                             page.wait_for_timeout(400)
                             try:
-                                more_btn.click(force=True)
+                                more_btn.click(force=True, timeout=2000)
                             except Exception:
-                                more_btn.evaluate("node => node.click()")
-                            page.wait_for_timeout(1200)
+                                more_btn.evaluate("node => node.click()", timeout=2000)
+                            page.wait_for_timeout(800)
 
                             dropdown_container = page.locator(
                                 ".artdeco-dropdown__content.artdeco-dropdown__content--is-open, "
                                 ".artdeco-dropdown--is-opened .artdeco-dropdown__content, "
                                 "div.artdeco-dropdown__content[aria-hidden='false'], "
-                                "div[role='menu'], "
-                                "div.artdeco-dropdown__content"
+                                "div[role='menu']"
                             ).first
 
-                            dropdown_connect_selectors = [
-                                "div[role='button']:has-text('Connect')",
-                                "div[role='menuitem']:has-text('Connect')",
-                                "button[role='menuitem']:has-text('Connect')",
-                                "a[role='menuitem']:has-text('Connect')",
-                                ".artdeco-dropdown__item:has-text('Connect')",
-                                "[aria-label*='Invite'][aria-label*='connect']",
-                                "[aria-label*='Connect with']",
-                                "[componentkey*='ConnectButton']",
-                                "[componentkey*='connect']",
-                                "[componentkey*='Connect']",
-                                "button:has-text('Connect')",
-                                "span:text-is('Connect')",
-                                "li:has-text('Connect')",
-                                "a[href*='custom-invite']",
-                            ]
-                            for d_sel in dropdown_connect_selectors:
-                                try:
-                                    cand = None
-                                    if dropdown_container.is_visible(timeout=500):
-                                        cand = dropdown_container.locator(d_sel).first
-                                    if not cand or not cand.is_visible(timeout=300):
-                                        cand = page.locator(d_sel).first
-                                    if cand.is_visible(timeout=500):
-                                        connect_btn = cand
-                                        is_from_dropdown = True
-                                        break
-                                except Exception:
-                                    continue
+                            # FAST TRACK: Direct in-DOM click inside the active open dropdown!
+                            # Avoids Playwright pointer movement that causes Artdeco blur/close,
+                            # and guarantees 0ms timeout freeze.
+                            clicked_in_dropdown = page.evaluate("""
+                                () => {
+                                    const dropdownContainers = Array.from(document.querySelectorAll(
+                                        '.artdeco-dropdown__content--is-open, ' +
+                                        '.artdeco-dropdown--is-opened .artdeco-dropdown__content, ' +
+                                        'div.artdeco-dropdown__content[aria-hidden="false"], ' +
+                                        'div[role="menu"]'
+                                    ));
+                                    
+                                    // Strictly find visible dropdown container in viewport
+                                    const activeDropdown = dropdownContainers.find(c => {
+                                        if (c.closest('.msg-overlay-container, .msg-overlay-conversation-bubble')) return false;
+                                        const r = c.getBoundingClientRect();
+                                        return r.width > 30 && r.height > 30 && r.top >= 0 && r.top < window.innerHeight;
+                                    });
+                                    if (!activeDropdown) return false;
+
+                                    const items = Array.from(activeDropdown.querySelectorAll(
+                                        'div[role="button"], div[role="menuitem"], button[role="menuitem"], ' +
+                                        'a[role="menuitem"], .artdeco-dropdown__item, button, a, li, span'
+                                    ));
+                                    for (const el of items) {
+                                        const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+                                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                                        if (txt === 'connect' || (aria.includes('invite') && aria.includes('connect')) || aria.includes('connect with') || txt.includes('connect')) {
+                                            const clickable = el.closest('button, [role="button"], [role="menuitem"], a') || el;
+                                            clickable.focus();
+                                            try { clickable.click(); } catch(e) {}
+                                            ['mousedown', 'mouseup', 'click'].forEach(evtName => {
+                                                clickable.dispatchEvent(new MouseEvent(evtName, { bubbles: true, cancelable: true, view: window }));
+                                            });
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                }
+                            """)
+
+                            if clicked_in_dropdown:
+                                is_from_dropdown = True
+                                dropdown_clicked = True
+                            else:
+                                # Fallback locator search strictly inside the dropdown
+                                dropdown_connect_selectors = [
+                                    "div[role='button']:has-text('Connect')",
+                                    "div[role='menuitem']:has-text('Connect')",
+                                    "button[role='menuitem']:has-text('Connect')",
+                                    "a[role='menuitem']:has-text('Connect')",
+                                    ".artdeco-dropdown__item:has-text('Connect')",
+                                    "[aria-label*='Invite'][aria-label*='connect']",
+                                    "[aria-label*='Connect with']",
+                                    "[componentkey*='ConnectButton']",
+                                    "[componentkey*='connect']",
+                                    "button:has-text('Connect')",
+                                    "span:text-is('Connect')",
+                                    "li:has-text('Connect')",
+                                ]
+                                for d_sel in dropdown_connect_selectors:
+                                    try:
+                                        if dropdown_container.is_visible(timeout=500):
+                                            cand = dropdown_container.locator(d_sel).first
+                                            if cand.is_visible(timeout=300):
+                                                connect_btn = cand
+                                                is_from_dropdown = True
+                                                break
+                                    except Exception:
+                                        continue
                         except Exception:
                             pass
 
-                if not connect_btn or not connect_btn.is_visible():
+                if not dropdown_clicked and (not connect_btn or not connect_btn.is_visible(timeout=500)):
+                    # Guard: verify internet status before declaring button missing!
+                    if not is_internet_available():
+                        console.print(f"  [yellow]⚠ Internet dropped while searching buttons for {name}. Waiting for Wi-Fi recovery (Checking every 30s, max 10 mins)...[/yellow]")
+                        if wait_for_network_recovery(max_wait_seconds=600, check_interval_seconds=30):
+                            console.print(f"  [cyan]✓ Wi-Fi recovered! Reloading page for {name} to hydrate buttons...[/cyan]")
+                            page.reload(wait_until="domcontentloaded")
+                            page.wait_for_timeout(2500)
+                            continue
                     if attempt == 1:
                         console.print(f"  [yellow]  ⚠ Connect button not detected on attempt 1 for {name}. Retrying once...[/yellow]")
-                        page.wait_for_timeout(1500)
+                        page.wait_for_timeout(1000)
                         continue
                     else:
                         console.print(f"  [red]  ❌ Connect button completely hidden/missing for {name} after retry.[/red]")
@@ -793,26 +890,35 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                 origin_desc = "More actions dropdown" if is_from_dropdown else "Top Card"
                 console.print(f"  [cyan]  ✓ Found Connect button for {name} ({origin_desc}). Clicking...[/cyan]")
 
-                # CRITICAL FIX: Only scroll window if button is directly on top card!
-                # NEVER scroll window if button is inside an open dropdown, because window scrolling
-                # immediately dismisses/closes the Artdeco dropdown menu before click can register!
-                if not is_from_dropdown:
-                    connect_btn.scroll_into_view_if_needed()
-                    page.evaluate("window.scrollBy(0, -150)")
-                    page.wait_for_timeout(400)
-
                 url_before_click = page.url
-                try:
-                    connect_btn.click(timeout=2500)
-                except Exception:
-                    # Fallback: dispatch full mouse event cycle directly to element
-                    connect_btn.evaluate("""(node) => {
-                        node.focus();
-                        ['mousedown', 'mouseup', 'click'].forEach(evt => {
-                            node.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
-                        });
-                    }""")
-                page.wait_for_timeout(2000)
+                if not dropdown_clicked and connect_btn:
+                    if not is_from_dropdown:
+                        try:
+                            connect_btn.evaluate("el => el.scrollIntoView({block: 'center', inline: 'nearest'})", timeout=1500)
+                        except Exception:
+                            try:
+                                connect_btn.scroll_into_view_if_needed(timeout=1500)
+                            except Exception:
+                                pass
+                        page.evaluate("window.scrollBy(0, -150)")
+                        page.wait_for_timeout(400)
+
+                    try:
+                        connect_btn.click(timeout=2500)
+                    except Exception:
+                        # Fallback: dispatch full mouse event cycle directly to element with strict short timeout
+                        try:
+                            connect_btn.evaluate("""(node) => {
+                                node.focus();
+                                try { node.click(); } catch(e) {}
+                                ['mousedown', 'mouseup', 'click'].forEach(evt => {
+                                    node.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+                                });
+                            }""", timeout=2000)
+                        except Exception:
+                            pass
+
+                page.wait_for_timeout(1800)
 
                 if "custom-invite" in page.url or page.url != url_before_click:
                     try:
@@ -821,20 +927,30 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         pass
                     page.wait_for_timeout(1500)
 
-                # Look for the connection modal
+                # Look for the connection modal (strictly exclude chat bubbles / overlay containers)
                 modal_loc = None
-                for m_sel in ["div[role='dialog']", ".artdeco-modal", "[data-test-modal]"]:
+                modal_selectors = [
+                    "div.send-invite",
+                    "div[role='dialog']:not(.msg-overlay-conversation-bubble):not(.msg-overlay-bubble-header)",
+                    ".artdeco-modal:not(.msg-overlay-conversation-bubble)",
+                    "[data-test-modal]:not(.msg-overlay-conversation-bubble)",
+                ]
+                for m_sel in modal_selectors:
                     try:
                         m = page.locator(m_sel).first
                         if m.is_visible(timeout=1500):
-                            modal_loc = m
-                            break
+                            # Ensure it's not inside a chat overlay
+                            is_chat = m.evaluate("el => !!el.closest('.msg-overlay-container, .msg-overlay-conversation-bubble')", timeout=1500)
+                            if not is_chat:
+                                modal_loc = m
+                                break
                     except Exception:
                         continue
 
                 send_blank_btn = None
                 if modal_loc:
-                    # STRICTLY search inside the open modal dialog to prevent matching "Send message" on profile
+                    # STRICTLY search inside the open connection dialog for invitation send buttons
+                    # NEVER use generic "Send" which matches chat compose Send button!
                     send_blank_selectors = [
                         "button[aria-label*='without a note' i]",
                         "button:has-text('Send without a note')",
@@ -842,8 +958,6 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         "button:has-text('Send invitation')",
                         "button[aria-label*='Send now' i]",
                         "button:has-text('Send now')",
-                        "button:text-is('Send')",
-                        "button:has-text('Send')",
                     ]
                     for sel in send_blank_selectors:
                         try:
@@ -874,14 +988,25 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         console.print(f"  [yellow]  ⚠ Connection modal did not open on attempt 1 for {name}. Retrying once...[/yellow]")
                         try:
                             page.keyboard.press("Escape")
-                            page.wait_for_timeout(1000)
+                            page.wait_for_timeout(300)
+                            page.keyboard.press("Escape")
+                            page.wait_for_timeout(800)
+                            page.evaluate("window.scrollTo(0, 0)")
                         except Exception:
                             pass
                         continue
                     else:
+                        if not is_internet_available():
+                            console.print(f"  [yellow]⚠ Internet dropped after clicking connect for {name}. Waiting for Wi-Fi recovery (Checking every 30s, max 10 mins)...[/yellow]")
+                            if wait_for_network_recovery(max_wait_seconds=600, check_interval_seconds=30):
+                                console.print(f"  [cyan]✓ Wi-Fi recovered! Reloading page for {name}...[/cyan]")
+                                page.reload(wait_until="domcontentloaded")
+                                page.wait_for_timeout(2500)
+                                continue
                         console.print(f"  [red]  ❌ Connection failed for {name}: Modal never opened and status not Pending.[/red]")
                         try:
                             page.keyboard.press("Escape")
+                            page.wait_for_timeout(1000)
                         except Exception:
                             pass
                         return False, "click_failed"
@@ -947,7 +1072,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                             send_blank_btn.focus()
                             page.keyboard.press("Enter")
                         except Exception:
-                            send_blank_btn.evaluate("node => node.click()")
+                            send_blank_btn.evaluate("node => node.click()", timeout=2000)
 
                     human_sleep(2.0, 3.5, "After send")
                     return True, "Blank Sent"
@@ -956,7 +1081,10 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         console.print(f"  [yellow]  ⚠ Could not confirm Send button in modal on attempt 1 for {name}. Retrying once...[/yellow]")
                         try:
                             page.keyboard.press("Escape")
-                            page.wait_for_timeout(1000)
+                            page.wait_for_timeout(300)
+                            page.keyboard.press("Escape")
+                            page.wait_for_timeout(800)
+                            page.evaluate("window.scrollTo(0, 0)")
                         except Exception:
                             pass
                         continue
@@ -974,7 +1102,10 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                     console.print(f"  [yellow]  ⚠ Attempt 1 error for {name}: {e_att}. Retrying once...[/yellow]")
                     try:
                         page.keyboard.press("Escape")
-                        page.wait_for_timeout(1000)
+                        page.wait_for_timeout(300)
+                        page.keyboard.press("Escape")
+                        page.wait_for_timeout(800)
+                        page.evaluate("window.scrollTo(0, 0)")
                     except Exception:
                         pass
                     continue
@@ -986,7 +1117,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
 
     # ─── Main Run ──────────────────────────────────────────────────────────────
 
-    def run(self, leads: list[dict], dry_run: bool = False, test_mode: bool = False, ghost_run: bool = False, profile: Optional[dict] = None) -> list[dict]:
+    def run(self, leads: list[dict], dry_run: bool = False, test_mode: bool = False, ghost_run: bool = False, profile: Optional[dict] = None, remote: bool = False) -> list[dict]:
         """
         Send BLANK connection requests for all leads.
 
@@ -994,6 +1125,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
         test_mode:  Open browser, visit profiles, but DON'T click Send.
         ghost_run:  Full browser run but skip the final 'Send without a note' click.
         profile:    User profile dictionary for personalization context.
+        remote:     Connect over CDP to remote Chrome instance (port 9222).
         """
         if profile is None:
             profile_path = DATA_DIR / "my_profile.json"
@@ -1038,16 +1170,18 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
         sync_playwright, Stealth_cls = self._get_playwright()
 
         with sync_playwright() as p:
-            browser, context = self._load_session_context(p)
+            browser, context, is_remote = self._load_session_context(p, remote=remote)
             page = context.new_page()
             Stealth_cls().apply_stealth_sync(page)
 
             # Validate session
             if not self._check_session_valid(page):
-                try:
-                    browser.close()
-                except Exception:
-                    pass
+                self._save_session(context)
+                if not is_remote:
+                    try:
+                        browser.close()
+                    except Exception:
+                        pass
                 return leads
 
             # ── Process leads with retry queue & non-overlapping batch sleeps ──
@@ -1116,6 +1250,13 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                                     continue
                             except Exception:
                                 pass
+
+                        # Network health guard: pause and wait if internet disconnected before visiting
+                        if not is_internet_available():
+                            console.print(f"\n[bold yellow]⚠ Internet connection lost before processing {name}. Pausing pipeline...[/bold yellow]")
+                            if not wait_for_network_recovery(max_wait_seconds=600, check_interval_seconds=30):
+                                console.print("[bold red]❌ Network recovery timed out. Preserving progress and stopping safely.[/bold red]")
+                                return leads
 
                         visit_count += 1
                         session_visit_count += 1
@@ -1320,10 +1461,12 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                             self.results.append(r_lead)
                     self.retry_queue.clear()
 
-            try:
-                browser.close()
-            except Exception:
-                pass
+            self._save_session(context)
+            if not is_remote:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
 
         console.print(
             Panel(

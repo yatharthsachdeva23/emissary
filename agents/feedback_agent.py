@@ -102,7 +102,7 @@ class FeedbackAgent:
 
         try:
             from utils.gemini_client import generate_with_rotation
-            model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
             resp_text = generate_with_rotation(prompt, model=model_name)
             updated = self._extract_json(resp_text)
             if not updated:
