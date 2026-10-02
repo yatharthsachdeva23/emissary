@@ -594,7 +594,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
   "current_position": "Resolved current job title/position"
 }}
 """
-            model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
             resp_text = generate_with_rotation(verification_prompt, model=model_name)
             match = re.search(r"```json\s*([\s\S]+?)\s*```", resp_text)
             if match:

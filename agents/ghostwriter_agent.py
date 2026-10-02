@@ -829,7 +829,7 @@ class GhostwriterAgent:
         data = {}
         try:
             from utils.gemini_client import generate_with_rotation
-            model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
             resp_text = generate_with_rotation(prompt, model=model_name)
 
             match = re.search(r"```json\s*([\s\S]+?)\s*```", resp_text)

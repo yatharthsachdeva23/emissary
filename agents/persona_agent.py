@@ -76,7 +76,7 @@ class PersonaAgent:
             system_instruction=SYSTEM_PROMPT,
             temperature=0.8,
         )
-        model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+        model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
         reply = generate_with_rotation(
             contents=self.history,
             config=cfg,
