@@ -33,23 +33,23 @@ RAW_LEADS_PATH = DATA_DIR / "raw_leads_today.json"
 SEEN_PATH = DATA_DIR / "seen_profiles.json"
 SERPER_URL = "https://google.serper.dev/search"
 
-# ─── Multi-Segment Keyword Matrices (1: Dubai Proptech, 2: India Non-Tech, 3: US, 4: India Tech) ───
+# ─── Multi-Segment Keyword Matrices (Major Bias: Dubai PropTech & Real Estate) ───
 DUBAI_ROLE_SETS = [
-    '"Founder" OR "Co-Founder" OR "CEO"',
-    '"Head of Sales" OR "VP Sales" OR "Director of Sales"',
-    '"Head of Business Development" OR "Commercial Director" OR "Head of Commercial"',
-    '"Head of Product" OR "VP Product" OR "Product Lead"',
-    '"Managing Director" OR "General Manager" OR "COO"',
-    '"Head of Growth" OR "VP Growth" OR "Growth Lead"',
+    '"Founder" OR "Co-Founder" OR "CEO" OR "Managing Director"',
+    '"Head of Sales" OR "VP Sales" OR "Director of Sales" OR "Commercial Director"',
+    '"Head of Marketing" OR "VP Marketing" OR "Director of Marketing" OR "Head of Growth"',
+    '"Head of Product" OR "VP Product" OR "Product Lead" OR "Product Manager"',
+    '"Founder\'s Office" OR "Chief of Staff" OR "General Manager"',
+    '"Head of Business Development" OR "VP Business Development" OR "Client Acquisition"',
 ]
 
 DUBAI_THEME_SETS = [
     '"PropTech" OR "Real Estate Tech"',
     '"Property Management" OR "PropTech Platform"',
-    '"Real Estate" OR "Residential"',
-    '"Property Brokerage" OR "Property Portal"',
-    '"Off-plan" OR "Luxury Real Estate" OR "Real Estate Startup"',
-    '"Seed" OR "Series A" OR "Funded" "Real Estate"',
+    '"Real Estate Brokerage" OR "Real Estate Agency"',
+    '"Luxury Real Estate" OR "Off-plan" OR "Property Development"',
+    '"Real Estate Investment" OR "Residential Properties"',
+    '"Property Portal" OR "Real Estate Startup"',
 ]
 
 DUBAI_LOCATIONS = [
@@ -58,92 +58,65 @@ DUBAI_LOCATIONS = [
     '"United Arab Emirates"',
 ]
 
-# Priority 2: India Non-Tech Startups (PM, Sales, Founder's Office)
+# Secondary: India Non-Tech Startups (PM, Sales, Marketing, Founder's Office - NO pure tech)
 INDIA_NON_TECH_ROLE_SETS = [
     '"Product Manager" OR "APM" OR "Associate Product Manager"',
-    '"Head of Product" OR "VP Product" OR "Director of Product"',
-    '"Head of Sales" OR "VP Sales" OR "Director of Sales" OR "Sales Lead"',
-    '"Head of Business Development" OR "VP Business Development" OR "Commercial Director"',
-    '"Founder\'s Office" OR "Chief of Staff"',
-    '"Founder" OR "Co-Founder" OR "CEO"',
-    '"Head of Growth" OR "VP Growth" OR "Growth Lead"',
+    '"Head of Sales" OR "VP Sales" OR "Commercial Director"',
+    '"Head of Marketing" OR "VP Marketing" OR "Growth Lead"',
+    '"Founder\'s Office" OR "Chief of Staff" OR "Founder" OR "CEO"',
 ]
 
 INDIA_NON_TECH_THEME_SETS = [
     '"D2C" OR "Consumer Brand" OR "Retail"',
     '"Logistics" OR "Supply Chain" OR "Operations"',
-    '"Manufacturing" OR "FMCG" OR "Consumer Goods"',
     '"Hospitality" OR "Food & Beverage" OR "Health & Wellness"',
-    '"Direct to Consumer" OR "Omnichannel" OR "E-commerce"',
-    '"Services" OR "Real Estate" OR "Home Decor" OR "Construction"',
+    '"Real Estate" OR "Property" OR "Home Decor"',
 ]
 
 INDIA_LOCATIONS = [
     '"Bangalore" OR "Bengaluru"',
     '"Delhi NCR" OR "Gurgaon" OR "Noida"',
-    '"Mumbai" OR "Pune"',
-    '"India"',
+    '"Mumbai" OR "India"',
 ]
 
-# Priority 3: US Tech & Non-Tech Startups
-US_ROLE_SETS = [
-    '"Product Manager" OR "Founding PM" OR "APM"',
-    '"Head of Product" OR "VP Product" OR "CPO"',
-    '"Head of Sales" OR "VP Sales" OR "Head of BD"',
-    '"Founder\'s Office" OR "Chief of Staff"',
+# Secondary: US Real Estate & PropTech (NO generic software/dev tech)
+US_REAL_ESTATE_ROLE_SETS = [
     '"Founder" OR "Co-Founder" OR "CEO"',
-    '"Head of Growth" OR "VP Growth" OR "Growth PM"',
+    '"Head of Product" OR "VP Product" OR "Product Manager"',
+    '"Head of Sales" OR "VP Sales" OR "Head of Growth"',
+    '"Founder\'s Office" OR "Chief of Staff"',
 ]
 
-US_THEME_SETS = [
-    '"B2B SaaS" OR "AI Startup" OR "AI Product"',
-    '"Fintech" OR "Payments"',
-    '"D2C" OR "Consumer" OR "Retail" OR "E-commerce"',
-    '"Logistics" OR "Supply Chain" OR "Operations"',
-    '"Startup" OR "Seed" OR "Series A"',
+US_REAL_ESTATE_THEME_SETS = [
+    '"PropTech" OR "Real Estate Tech"',
+    '"Real Estate" OR "Property Management"',
+    '"Commercial Real Estate" OR "Residential"',
 ]
 
 US_LOCATIONS = [
     '"New York" OR "NYC" OR "Manhattan"',
-    '"San Francisco" OR "Austin"',
     '"United States"',
-]
-
-# Priority 4: India Tech Startups
-INDIA_TECH_ROLE_SETS = [
-    '"Product Manager" OR "APM" OR "Associate Product Manager"',
-    '"Head of Product" OR "VP Product"',
-    '"Founder\'s Office" OR "Chief of Staff"',
-    '"Founder" OR "Co-Founder" OR "CEO"',
-]
-
-INDIA_TECH_THEME_SETS = [
-    '"AI Startup" OR "Generative AI" OR "AI Product"',
-    '"B2B SaaS" OR "SaaS"',
-    '"Fintech" OR "Payments"',
-    '"Developer Tools" OR "DeepTech"',
-    '"Startup" "Seed" OR "Series A"',
 ]
 
 
 def generate_random_static_queries() -> list[tuple[str, Optional[str], str]]:
     """
-    Generates prioritized, 4-tier Google search dorks on every run:
-    - Priority 1: Dubai/UAE Proptech & Property Startups (6 queries: 4 profile, 2 post, gl='ae')
-    - Priority 2: India Non-Tech Startups: PM, Sales, Founder's Office (4 queries: 2 profile, 2 post, gl='in')
-    - Priority 3: US Tech & Non-Tech Startups (3 queries: 2 profile, 1 post, gl='us')
-    - Priority 4: India Tech Startups: PM & Founder's Office (2 queries: 1 profile, 1 post, gl='in')
-    Total: 15 queries.
+    Generates prioritized Google search dorks with heavy bias on Dubai PropTech & Real Estate:
+    - Primary (High Bias): Dubai/UAE Proptech & Real Estate (11 queries: 8 profile, 3 post, gl='ae')
+      Covering Sales, Marketing, PM, and Founder's Office under equal high priority.
+    - Secondary: India Non-Tech Startups: PM, Sales, Marketing, Founder's Office (2 queries: 1 profile, 1 post, gl='in')
+    - Secondary: US PropTech & Real Estate (2 queries: 1 profile, 1 post, gl='us')
+    Total: 15 queries. NO generic tech/SaaS companies.
     Returns list of tuples: (query, tbs, gl)
     """
     import random
     queries = []
     used_combos = set()
 
-    # 1. Dubai / UAE Proptech & Property (Priority 1: 4 profile dorks + 2 post dorks)
+    # 1. Dubai / UAE Proptech & Real Estate (Primary: 8 profile dorks + 3 post dorks)
     attempts = 0
     dubai_profiles = []
-    while len(dubai_profiles) < 4 and attempts < 100:
+    while len(dubai_profiles) < 8 and attempts < 150:
         attempts += 1
         r = random.choice(DUBAI_ROLE_SETS)
         t = random.choice(DUBAI_THEME_SETS)
@@ -158,10 +131,10 @@ def generate_random_static_queries() -> list[tuple[str, Optional[str], str]]:
 
     attempts = 0
     dubai_posts = []
-    while len(dubai_posts) < 2 and attempts < 100:
+    while len(dubai_posts) < 3 and attempts < 100:
         attempts += 1
-        sig = random.choice(["we are hiring", "hiring", "open role", "looking for"])
-        role = random.choice(['"Sales" OR "Real Estate"', '"Proptech" OR "Property"', '"Product" OR "Growth"'])
+        sig = random.choice(["we are hiring", "hiring", "open role", "looking for", "join our team"])
+        role = random.choice(['"Sales" OR "Commercial"', '"Proptech" OR "Real Estate"', '"Product" OR "Marketing"', '"Founder\'s Office" OR "Growth"'])
         loc = random.choice(['"Dubai"', '"UAE"'])
         key = f"dubai_post_{sig}_{role}_{loc}"
         if key in used_combos:
@@ -171,45 +144,45 @@ def generate_random_static_queries() -> list[tuple[str, Optional[str], str]]:
         dubai_posts.append((q, "qdr:w", "ae"))
     queries.extend(dubai_posts)
 
-    # 2. India Non-Tech Startups: PM, Sales, Founder's Office (Priority 2: 2 profile dorks + 2 post dorks)
+    # 2. India Non-Tech Startups: PM, Sales, Marketing, Founder's Office (1 profile + 1 post)
     attempts = 0
-    india_nontech_profiles = []
-    while len(india_nontech_profiles) < 2 and attempts < 100:
+    india_profiles = []
+    while len(india_profiles) < 1 and attempts < 50:
         attempts += 1
         r = random.choice(INDIA_NON_TECH_ROLE_SETS)
         t = random.choice(INDIA_NON_TECH_THEME_SETS)
         l = random.choice(INDIA_LOCATIONS)
-        key = f"india_nontech_{r}_{t}_{l}"
+        key = f"india_{r}_{t}_{l}"
         if key in used_combos:
             continue
         used_combos.add(key)
         q = f'site:linkedin.com/in {r} {t} {l} -intern -student -stealth'
-        india_nontech_profiles.append((q, None, "in"))
-    queries.extend(india_nontech_profiles)
+        india_profiles.append((q, None, "in"))
+    queries.extend(india_profiles)
 
     attempts = 0
-    india_nontech_posts = []
-    while len(india_nontech_posts) < 2 and attempts < 100:
+    india_posts = []
+    while len(india_posts) < 1 and attempts < 50:
         attempts += 1
-        sig = random.choice(["we are hiring", "hiring", "join our team", "open role"])
-        role = random.choice(['"Product Manager" OR "APM"', '"Head of Sales" OR "VP Sales"', '"Founder\'s Office" OR "Growth"'])
-        cat = random.choice(['"D2C" OR "Consumer"', '"Retail" OR "Logistics"', '"Operations" OR "FMCG"'])
-        loc = random.choice(['"Bangalore" OR "Delhi NCR"', '"Gurgaon" OR "Noida"', '"India"'])
+        sig = random.choice(["we are hiring", "hiring", "open role"])
+        role = random.choice(['"Product Manager" OR "APM"', '"Head of Sales" OR "VP Sales"', '"Founder\'s Office" OR "Marketing"'])
+        cat = random.choice(['"D2C" OR "Consumer"', '"Retail" OR "Logistics"', '"Operations"'])
+        loc = random.choice(['"Bangalore" OR "Delhi NCR"', '"Mumbai" OR "India"'])
         key = f"india_post_{sig}_{role}_{cat}_{loc}"
         if key in used_combos:
             continue
         used_combos.add(key)
         q = f'site:linkedin.com/posts "{sig}" {role} {cat} {loc} -intern -student -stealth'
-        india_nontech_posts.append((q, "qdr:w", "in"))
-    queries.extend(india_nontech_posts)
+        india_posts.append((q, "qdr:w", "in"))
+    queries.extend(india_posts)
 
-    # 3. US Tech & Non-Tech Startups (Priority 3: 2 profile dorks + 1 post dork)
+    # 3. US Real Estate & PropTech (1 profile + 1 post)
     attempts = 0
     us_profiles = []
-    while len(us_profiles) < 2 and attempts < 100:
+    while len(us_profiles) < 1 and attempts < 50:
         attempts += 1
-        r = random.choice(US_ROLE_SETS)
-        t = random.choice(US_THEME_SETS)
+        r = random.choice(US_REAL_ESTATE_ROLE_SETS)
+        t = random.choice(US_REAL_ESTATE_THEME_SETS)
         l = random.choice(US_LOCATIONS)
         key = f"us_{r}_{t}_{l}"
         if key in used_combos:
@@ -221,49 +194,19 @@ def generate_random_static_queries() -> list[tuple[str, Optional[str], str]]:
 
     attempts = 0
     us_posts = []
-    while len(us_posts) < 1 and attempts < 100:
+    while len(us_posts) < 1 and attempts < 50:
         attempts += 1
         sig = random.choice(["we are hiring", "hiring", "open role"])
-        role = random.choice(['"Product Manager" OR "APM"', '"Head of Product" OR "Founder\'s Office"'])
+        role = random.choice(['"Product Manager" OR "APM"', '"Sales" OR "Founder\'s Office"'])
+        cat = random.choice(['"PropTech"', '"Real Estate"'])
         loc = random.choice(['"New York" OR "NYC"', '"United States"'])
-        key = f"us_post_{sig}_{role}_{loc}"
+        key = f"us_post_{sig}_{role}_{cat}_{loc}"
         if key in used_combos:
             continue
         used_combos.add(key)
-        q = f'site:linkedin.com/posts "{sig}" {role} {loc} -intern -student -stealth'
+        q = f'site:linkedin.com/posts "{sig}" {role} {cat} {loc} -intern -student -stealth'
         us_posts.append((q, "qdr:w", "us"))
     queries.extend(us_posts)
-
-    # 4. India Tech Startups (Priority 4: 1 profile dork + 1 post dork)
-    attempts = 0
-    india_tech_profiles = []
-    while len(india_tech_profiles) < 1 and attempts < 100:
-        attempts += 1
-        r = random.choice(INDIA_TECH_ROLE_SETS)
-        t = random.choice(INDIA_TECH_THEME_SETS)
-        l = random.choice(INDIA_LOCATIONS)
-        key = f"india_tech_{r}_{t}_{l}"
-        if key in used_combos:
-            continue
-        used_combos.add(key)
-        q = f'site:linkedin.com/in {r} {t} {l} -intern -student -stealth'
-        india_tech_profiles.append((q, None, "in"))
-    queries.extend(india_tech_profiles)
-
-    attempts = 0
-    india_tech_posts = []
-    while len(india_tech_posts) < 1 and attempts < 100:
-        attempts += 1
-        sig = random.choice(["we are hiring", "hiring", "looking for"])
-        role = random.choice(['"Product Manager" OR "APM"', '"Founder\'s Office" OR "Product Lead"'])
-        loc = random.choice(['"Bangalore" OR "Bengaluru"', '"Delhi NCR" OR "Gurgaon"'])
-        key = f"india_tech_post_{sig}_{role}_{loc}"
-        if key in used_combos:
-            continue
-        used_combos.add(key)
-        q = f'site:linkedin.com/posts "{sig}" {role} {loc} -intern -student -stealth'
-        india_tech_posts.append((q, "qdr:w", "in"))
-    queries.extend(india_tech_posts)
 
     return queries
 
@@ -271,11 +214,11 @@ def generate_random_static_queries() -> list[tuple[str, Optional[str], str]]:
 # ─── Layer 2: LinkedIn Jobs → Leaders across Segments ────────────────────────
 JOB_SOURCING_QUERIES = [
     ('site:linkedin.com/jobs/view ("Proptech" OR "Real Estate Tech" OR "Property" OR "Residential") ("Startup" OR "Scaleup") "Dubai"', "ae"),
-    ('site:linkedin.com/jobs/view ("Sales" OR "Business Development" OR "Commercial") ("Proptech" OR "Real Estate") "Dubai"', "ae"),
-    ('site:linkedin.com/jobs/view ("Product Manager" OR "APM" OR "Associate Product Manager" OR "Founder\'s Office") ("D2C" OR "Consumer" OR "Retail" OR "Logistics" OR "Operations") "India"', "in"),
-    ('site:linkedin.com/jobs/view ("Head of Sales" OR "VP Sales" OR "Business Development" OR "Growth") ("D2C" OR "Consumer" OR "Retail" OR "Operations") "India"', "in"),
-    ('site:linkedin.com/jobs/view ("Product Manager" OR "APM" OR "Founder\'s Office" OR "Sales") ("Seed" OR "Series A" OR "Startup") ("New York" OR "United States")', "us"),
-    ('site:linkedin.com/jobs/view ("Product Manager" OR "APM" OR "Founder\'s Office") ("AI" OR "SaaS" OR "Fintech" OR "Startup") "India"', "in"),
+    ('site:linkedin.com/jobs/view ("Sales" OR "Business Development" OR "Commercial Director") ("Proptech" OR "Real Estate") "Dubai"', "ae"),
+    ('site:linkedin.com/jobs/view ("Head of Marketing" OR "Growth" OR "Marketing Manager") ("Proptech" OR "Real Estate") "Dubai"', "ae"),
+    ('site:linkedin.com/jobs/view ("Product Manager" OR "Head of Product" OR "Founder\'s Office") ("Proptech" OR "Real Estate") "Dubai"', "ae"),
+    ('site:linkedin.com/jobs/view ("Founder\'s Office" OR "Chief of Staff" OR "General Manager") ("Proptech" OR "Real Estate") "Dubai"', "ae"),
+    ('site:linkedin.com/jobs/view ("Product Manager" OR "APM" OR "Founder\'s Office" OR "Sales") ("D2C" OR "Consumer" OR "Retail" OR "Operations") "India"', "in"),
 ]
 
 COMPANY_EXTRACTION_PROMPT = """You are a parsing assistant. Extract unique company names from the following LinkedIn job posting titles and snippets.
@@ -284,9 +227,9 @@ Raw postings:
 {postings}
 
 Rules:
-- Extract companies operating or hiring in Dubai/UAE, India, or United States.
-- For India: Focus strictly on startups, scale-ups, and growth-stage companies (0-5 years approx). Skip large Indian legacy IT/corporate conglomerates (TCS, Infosys, Wipro, Cognizant, Reliance).
-- For Dubai/UAE and US: Extract startups, mid-level companies, AND prominent industry leaders/enterprises (Proptech platforms, Real Estate developers/brokerages like Emaar, Damac, Aldar, Sobha, Betterhomes, and US tech/enterprises).
+- Extract companies operating or hiring in Dubai/UAE (primary priority) or India.
+- STRICTLY FOCUS ON: PropTech, Real Estate brokerages/agencies, property developers, property management platforms, and consumer non-tech companies.
+- STRICTLY SKIP: Pure tech companies (developer tools, cloud infra, generic B2B SaaS, IT services).
 - Skip global staffing/recruitment agencies (e.g., Jobgether, Huptech HR, Converse Placement, Michael Page).
 - Return at most 6 unique company names.
 
@@ -301,30 +244,24 @@ DYNAMIC_DORK_PROMPT = """You are an expert lead-generation assistant for an outr
 Candidate Profile:
 {profile_summary}
 
-Generate exactly 12 unique Google search dorks to find high-value LinkedIn profiles of decision-makers:
-- For Dubai/UAE & US: Target startups, mid-level firms, AND big giants/enterprises!
-- For India: Target startups (0-5 years approx).
+Generate exactly 12 unique Google search dorks to find high-value LinkedIn profiles of decision-makers.
+PRIMARY HIGH BIAS: DUBAI PROPTECH & REAL ESTATE (10 out of 12 queries).
+SECONDARY: Non-Tech Consumer Startups (2 queries).
+STRICT RULE: DO NOT TARGET PURE TECH COMPANIES (no dev tools, generic B2B SaaS, cloud, IT services).
 
 PRIORITIZATION & SEGMENTATION RULES:
-1. DUBAI / UAE PROPTECH, PROPERTY & REAL ESTATE (1ST PRIORITY - 5 Dorks):
-   - Focus MAJORLY on Proptech, Property, Residential, Real Estate companies (from fast startups to established mid-level brokerages and enterprise developers like Emaar, Damac, Sobha, Betterhomes) in Dubai/UAE.
-   - Roles: "Founder", "Co-Founder", "CEO", "Head of Sales", "VP Sales", "Commercial Director", "Head of Product", "Managing Director", "Director".
-   - Terms: "Dubai" OR "UAE", "Proptech" OR "Real Estate" OR "Property" OR "Residential".
-2. INDIA NON-TECH STARTUPS: PM, SALES, FOUNDER'S OFFICE (2ND PRIORITY - 3 Dorks):
-   - Focus on Indian Non-Tech startups (D2C, Consumer brands, Retail, Logistics, Supply Chain, Operations, Manufacturing, Hospitality, Health) specifically for:
-     a) Product Management (PM / APM / Head of Product) optimizing user experience, checkout, catalog, and operations.
-     b) Sales, BD & Growth (Head of Sales, VP Sales, Commercial Director).
-     c) Founder's Office (Chief of Staff, Founder & CEO at early startups).
-   - Roles: "Product Manager", "APM", "Head of Sales", "VP Sales", "Founder's Office", "Founder".
-   - Terms: "Bangalore" OR "Delhi NCR" OR "Gurgaon" OR "Mumbai" OR "India", "D2C" OR "Consumer" OR "Retail" OR "Logistics" OR "Operations".
-3. US TECH & NON-TECH (3RD PRIORITY - 2 Dorks):
-   - Focus on high-growth Tech and Non-Tech companies in the United States (New York, SF, Austin, etc.) across startups, mid-level scale-ups, and enterprise tech.
-   - Roles: "Product Manager", "Founding PM", "Head of Product", "Head of Sales", "Founder's Office", "Founder", "VP Sales".
-   - Terms: "New York" OR "NYC" OR "San Francisco" OR "United States", "Startup" OR "B2B SaaS" OR "AI" OR "D2C" OR "Consumer" OR "Enterprise".
-4. INDIA TECH STARTUPS (4TH PRIORITY - 2 Dorks):
-   - Focus on AI, B2B SaaS, and Fintech tech startups in India (0-5 years).
-   - Roles: "Product Manager", "APM", "Head of Product", "Founder's Office", "Founder".
-   - Terms: "Bangalore" OR "Delhi NCR" OR "Gurgaon" OR "India", "AI Startup" OR "B2B SaaS" OR "Fintech".
+1. DUBAI / UAE PROPTECH, PROPERTY & REAL ESTATE (HIGHEST PRIORITY - 10 Dorks):
+   - Target across: PropTech startups, property management platforms, luxury real estate brokerages, agencies, and developers (e.g. PRYPCO, Keyper, Huspy, Betterhomes, haus & haus, Driven Properties, Emaar, Damac, Sobha).
+   - Roles under ONE EQUAL HIGH PRIORITY:
+     a) Founder's Office: "Founder", "Co-Founder", "CEO", "Managing Director", "Founder's Office", "Chief of Staff"
+     b) Sales & BD: "Head of Sales", "VP Sales", "Director of Sales", "Commercial Director", "Head of Business Development"
+     c) Marketing & Growth: "Head of Marketing", "VP Marketing", "Director of Marketing", "Head of Growth", "Growth Lead"
+     d) Product Management: "Head of Product", "VP Product", "Product Lead", "Product Manager"
+   - Terms: "Dubai" OR "UAE", "Proptech" OR "Real Estate" OR "Property" OR "Brokerage" OR "Residential" OR "Off-plan".
+2. INDIA NON-TECH CONSUMER STARTUPS (SECONDARY - 2 Dorks):
+   - Focus on D2C, retail, logistics, consumer operations for PM, Sales, Marketing, or Founder's Office.
+   - Roles: "Product Manager", "Head of Sales", "Founder's Office", "Head of Marketing".
+   - Terms: "Bangalore" OR "Delhi NCR" OR "Mumbai" OR "India", "D2C" OR "Consumer" OR "Retail" OR "Operations".
 
 GENERAL SYNTAX RULES:
 - Mix profile queries (site:linkedin.com/in) and post queries (site:linkedin.com/posts).
@@ -345,45 +282,31 @@ Student Profile:
 
 Candidate Strengths & Versatility:
 - Yatharth is a 4th-year student at DTU (Information Technology, 9.3 CGPA) and former Intern at NoBrokerHood (India's premier PropTech unicorn).
-- High-agency multi-domain builder: Strong across Product Management (PM/APM), B2B Sales, Founder's Office, Growth Marketing, and Tech/AI.
-- 15+ End-to-End Real-World Projects: Built 15+ complete projects from scratch with obsessive focus on exceptional User Experience (UX) and solving real-life problems (never building if it doesn't solve a real issue).
-- Sales Proof: Automated B2B sales outreach at NoBrokerHood (capturing 25+ extra qualified leads/mo) AND personal college society fest corporate sponsorship work (closed ₹3–10 Lakh corporate deals each year via cold outbound - FOR INDIAN SALES ONLY, NOT DUBAI).
-- Proptech Track (Dubai 1st Priority): Pitches combined B2B Sales + Tech, highlighting NoBrokerHood internship (automated sales outreach delivering 25+ extra leads/mo, 1.5x search efficiency).
-- Property Track (Dubai 1st Priority): Pitches high-velocity B2B Sales, outbound/inbound pipeline conversion, deal acceleration, client acquisition.
-- Non-Tech PM Track (India 2nd Priority): Pitches PM / APM with 15+ real-world UX projects and NoBrokerHood search/discovery optimization (1.5x efficiency).
-- Non-Tech Sales Track (India 2nd Priority): Pitches B2B Sales, corporate partnerships (NoBrokerHood 25+ leads/mo + ₹3–10L fest corporate deals).
-- US Tech & Non-Tech Track (US 3rd Priority): Pitches PM, Sales, or Founder's Office for US companies.
-- Tech PM Track (India 4th Priority): Pitches PM/APM/AI PM with 15+ real-world UX projects and NoBrokerHood AI PM.
-- Founder's Office Track: Pitches high-agency generalist operator for startups wearing multiple hats across product UX, B2B sales pipelines, and operations.
+- Positioning: High-agency operator targeting roles in Sales, Marketing, Product Management (PM/APM), and Founder's Office.
+- Unfair Advantage: Combines commercial and product execution with the technical ability to automate lead routing, scrape investor data, build internal tools, and optimize conversion UX directly without needing engineering support. (Tech/AI is an edge/multiplier, NOT a pure engineering track!).
+- 15+ End-to-End Real-World Projects: Built 15+ complete projects from scratch with obsessive focus on exceptional User Experience (UX) and solving real-life problems.
+- PropTech Proof: Shipped automated B2B sales outreach at NoBrokerHood (capturing 25+ extra qualified leads/mo) and optimized search discovery logic for 1.5x output coverage.
 
-SEGMENTATION & PRIORITIES (Score 0.85 - 1.0 for sweet-spot leads):
-1. GEOGRAPHIC & TIER PRIORITIES:
-   - 1ST PRIORITY: Dubai / UAE PropTech, Real Estate, Residential, Property Management, and Brokerages (Startups, Mid-level, AND Big Giants like Emaar, Damac, Sobha, Nakheel, Betterhomes).
-   - 2ND PRIORITY: India Non-Tech Startups (D2C, Consumer Brands, Retail, Logistics, Supply Chain, Operations, Manufacturing, Hospitality, Health) for PM, Sales, or Founder's Office.
-   - 3RD PRIORITY: US Tech & Non-Tech (New York, SF, US) across Startups, Mid-level, and Enterprise.
-   - 4TH PRIORITY: India Tech Startups (AI, B2B SaaS, Fintech).
-2. COMPANY TYPE:
-   - Proptech: STRICTLY companies whose core proprietary product is property technology, real estate software, portals, smart building platforms, or tenant management (e.g. Property Finder, PRYPCO, Coraly.ai, Smart Bricks).
-   - Property: Traditional residential & commercial brokerages, real estate agencies, property developers, leasing firms (e.g. haus & haus, McCone Properties, Emaar, Damac).
-   - Non-tech: D2C brands, consumer products, retail, logistics, manufacturing, operations-heavy businesses.
-   - Tech: Software, AI, B2B SaaS, Fintech, Consumer Tech, Enterprise Platforms, design/product studios.
-   - CRITICAL DISAMBIGUATION RULE: Do NOT classify design studios, UI/UX agencies, or dev shops as "proptech" just because they designed or built a real estate portal for a client (e.g., Layerat, Prex Studio)! If the company is an agency or studio, classify as "tech" (or discard if micro/freelance).
-3. MATURITY / STAGE CONSTRAINT & TIERS:
-   - FOR INDIA LEADS: STRICTLY STARTUPS (0 to ~5 years operating, ~5 to 100 people). Discard Indian Big Tech and Indian legacy corporate monoliths (TCS, Infosys, Wipro, Cognizant, Swiggy, Zomato, Flipkart).
-   - FOR NON-INDIAN LEADS (Dubai/UAE, US/New York): TARGET STARTUPS, MID-LEVEL COMPANIES, AND BIG GIANTS / ENTERPRISE (e.g., Emaar, Damac, Aldar, Sobha, Betterhomes, US tech enterprises). All tiers are welcome for non-Indian leads!
-4. COMPANY TIER CLASSIFICATION:
-   - "enterprise": Big giants, major developers, multinational corporations, global leaders.
-   - "mid_level": Established mid-market companies, scale-ups, prominent brokerages/agencies.
-   - "startup": Agile early-stage startups (0-5 years).
+SEGMENTATION & PRIORITIES:
+1. PRIMARY HIGHEST PRIORITY (Score 0.88 - 1.00):
+   - Dubai / UAE PropTech, Real Estate Brokerages, Agencies, Property Developers, and Property Management Platforms.
+   - Target Roles (ALL UNDER ONE EQUAL PRIORITY):
+     * Founder's Office (Founder, Co-Founder, CEO, Managing Director, Chief of Staff)
+     * Sales & BD (Head of Sales, VP Sales, Commercial Director, Head of BD, Client Acquisition)
+     * Marketing & Growth (Head of Marketing, VP Marketing, Growth Lead, Performance Marketing)
+     * Product Management (Head of Product, VP Product, Product Lead, Product Manager)
+2. SECONDARY (Score 0.70 - 0.85):
+   - India Non-Tech consumer startups (D2C, retail, logistics, operations) for PM, Sales, Marketing, or Founder's Office.
+   - US Real Estate & PropTech companies.
 
-DISCARD RULES (score = 0.0):
-1. SOLO FOUNDERS / MICRO-TEAMS / FREELANCERS / STEALTH (< 3-5 people): Discard 'stealth mode', solo freelancers, boutique 1-person design studios or solo consulting gigs, dormant side projects.
-2. INDIAN BIG CORPORATE MONOLITHS: For India ONLY, discard TCS, Infosys, Wipro, Cognizant, Accenture, Swiggy, Zomato, Flipkart, Reliance, Tata. (Non-Indian giants like Emaar, Damac, Sobha, Google, Microsoft, Salesforce in Dubai/US are ALLOWED and should be scored!).
-3. STAFFING & RECRUITMENT AGENCIES: Discard staffing, placement, and recruiting agencies (Michael Page, Adecco, Randstad, etc.).
-4. MISSING / UNKNOWN COMPANY OR ROLE: If person's company or role is missing/null, discard.
-5. INTERNS & STUDENTS: Discard anyone whose role is intern, internship, student, trainee, fresher, apprentice.
-6. PURE LOW-LEVEL CODING WITH NO BUSINESS/GROWTH: Discard pure junior backend coders or QA testers with zero product, sales, or management scope.
-(NOTE: Dubai, UAE, New York, US, and India leads are ALL WELCOME and encouraged! DO NOT discard based on location).
+STRICT DISCARD RULES (score = 0.0):
+1. PURE TECH COMPANIES: Discard generic B2B SaaS, developer tooling, cloud infra, IT consultancies, AI dev shops UNLESS their core business is real estate/property (PropTech).
+2. PURE TECH / ENGINEERING TRACKS: Discard software engineer, backend engineer, frontend engineer, AI engineer, ML engineer roles or pitches.
+3. SOLO FOUNDERS / MICRO-TEAMS / STEALTH (< 3-5 people): Discard 'stealth mode', solo freelancers, boutique 1-person design studios or solo consulting gigs.
+4. INDIAN BIG CORPORATE MONOLITHS: For India ONLY, discard TCS, Infosys, Wipro, Cognizant, Accenture, Swiggy, Zomato, Flipkart, Reliance, Tata. (Dubai real estate giants like Emaar, Damac, Sobha, Betterhomes are ALLOWED and should be scored high!).
+5. STAFFING & RECRUITMENT AGENCIES: Discard staffing and placement agencies.
+6. MISSING / UNKNOWN COMPANY OR ROLE: If person's company or role is missing/null, discard.
+7. INTERNS & STUDENTS: Discard anyone whose role is intern, internship, student, trainee, fresher, apprentice.
 
 Return ONLY a JSON array of objects wrapped in ```json ... ``` tags:
 [
@@ -391,10 +314,10 @@ Return ONLY a JSON array of objects wrapped in ```json ... ``` tags:
     "id": 0,
     "name": "Full Name extracted from title",
     "company": "Exact Company Name extracted from snippet/title",
-    "role": "Exact Role/Title (e.g. Founder & CEO, Head of Sales, VP Product, Founder's Office, Managing Director)",
+    "role": "Exact Role/Title (e.g. Founder & CEO, Head of Sales, Head of Marketing, VP Product, Founder's Office, Managing Director)",
     "score": 0.95,
     "geo_segment": "dubai | new_york | uae | us | india | other",
-    "company_type": "proptech | property | tech | non_tech",
+    "company_type": "proptech | property | non_tech",
     "company_tier": "startup | mid_level | enterprise",
     "pitch_track": "proptech_sales_tech | property_sales | non_tech_pm | non_tech_growth_sales | tech_pm | founders_office",
     "discard_reason": null
@@ -925,22 +848,21 @@ class DiscoveryAgent:
         if follower_count > 0:
             score += self._follower_bonus(follower_count)
 
-        # Geographic and segment priority weighting (4 tiers):
-        # Priority 1: Dubai / UAE Proptech & Property (Highest Priority)
+        # Geographic and segment priority weighting:
+        # Priority 1: Dubai / UAE Proptech & Real Estate (Highest Priority & High Bias)
         if any(kw in text for kw in ['dubai', 'uae', 'united arab emirates']):
-            if any(kw in text for kw in ['proptech', 'real estate', 'property', 'residential']):
-                score += 0.30
+            if any(kw in text for kw in ['proptech', 'real estate', 'property', 'residential', 'brokerage', 'developer', 'off-plan', 'leasing']):
+                score += 0.35
             else:
                 score += 0.15
-        # Priority 2: India Non-Tech (PM, Sales, Founder's Office)
+        # Secondary: India Non-Tech (PM, Sales, Marketing, Founder's Office)
         elif any(kw in text for kw in ['delhi', 'bengaluru', 'bangalore', 'hyderabad', 'pune', 'mumbai', 'gurgaon', 'noida', 'india']) and any(kw in text for kw in ['d2c', 'consumer', 'retail', 'logistics', 'operations', 'fmcg', 'supply chain', 'hospitality', 'services', 'fashion', 'brand']):
-            score += 0.25
-        # Priority 3: US Tech & Non-Tech Startups
-        elif any(kw in text for kw in ['new york', 'nyc', 'manhattan', 'san francisco', 'austin', 'united states', 'usa']):
+            score += 0.20
+        # Secondary: US Real Estate & PropTech
+        elif any(kw in text for kw in ['new york', 'nyc', 'manhattan', 'united states', 'usa']) and any(kw in text for kw in ['proptech', 'real estate', 'property']):
             score += 0.18
-        # Priority 4: India Tech Startups
-        elif any(kw in text for kw in ['delhi', 'bengaluru', 'bangalore', 'hyderabad', 'pune', 'mumbai', 'gurgaon', 'noida', 'india']):
-            score += 0.15
+        else:
+            score -= 0.10  # Penalize generic tech or outside priority scope
 
         return round(min(max(score, 0.0), 1.0), 2)
 
