@@ -1,0 +1,34 @@
+PROPRIETARY AND CONFIDENTIAL SOFTWARE LICENSE
+
+Copyright (c) 2026 Yatharth Sachdeva. All rights reserved.
+
+NOTICE TO USER: 
+This source code, software, documentation, architecture, prompts, and related assets 
+(collectively, the "Software") are the confidential and proprietary intellectual property 
+of Yatharth Sachdeva ("Owner").
+
+1. NO LICENSE GRANTED
+This Software is strictly proprietary. No license, express or implied, by estoppel or otherwise, 
+to any intellectual property rights is granted by this document or by access to this repository.
+
+2. PROHIBITED USES
+Except with the prior written permission of the Owner, you may not:
+- Copy, duplicate, reproduce, or mirror any portion of the Software.
+- Modify, translate, adapt, or create derivative works based upon the Software.
+- Distribute, publish, broadcast, sublicense, lease, rent, loan, or transfer the Software to any third party.
+- Reverse engineer, decompile, disassemble, or attempt to derive the underlying algorithms, 
+  heuristics, prompt engineering strategies, or architectural workflows of the Software.
+- Use the Software, or any portion thereof, directly or indirectly, for commercial, enterprise, 
+  or competitive purposes.
+
+3. CONFIDENTIALITY
+The methods, systems, agent orchestration patterns, cascade architectures, discovery heuristics, 
+and prompt structures embodied within this repository constitute trade secrets and proprietary 
+know-how of the Owner. Any unauthorized access, disclosure, or utilization is strictly prohibited.
+
+4. DISCLAIMER OF WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR 
+PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT OWNER BE LIABLE FOR ANY 
+CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, 
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
