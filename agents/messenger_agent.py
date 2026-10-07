@@ -32,6 +32,7 @@ from utils.safety import (
     ABSOLUTE_DAILY_MAX,
     batch_sleep,
     check_abort_conditions,
+    close_active_message_boxes,
     get_effective_daily_limit,
     get_typing_delay,
     human_sleep,
@@ -330,6 +331,9 @@ class MessengerAgent:
 
                 # ── React Hydration Wait (Streamlined) ───────────────────────────
                 page.wait_for_timeout(1500)
+
+                # Dismiss any active message box that LinkedIn popped up or restored upon navigation
+                self._close_active_message_boxes(page)
 
                 return True
 
@@ -641,9 +645,9 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
 
             is_safe = element.evaluate("""
                 el => {
-                    // 1. Strict exclusion of recommendation/sidebar containers
+                    // 1. Strict exclusion of recommendation/sidebar containers and messaging overlays
                     const badContainer = el.closest(
-                        'aside, .scaffold-layout__aside, ' +
+                        'aside, .scaffold-layout__aside, .msg-overlay-container, .msg-overlay-conversation-bubble, .msg-convo-wrapper, [data-view-name="message-overlay"], ' +
                         '[aria-label*="More profiles"], [aria-label*="People also viewed"], ' +
                         '[aria-label*="People you may know"], ' +
                         '.pv-browse-map, .discovery-titles, [data-test-id*="sidebar"]'
@@ -680,12 +684,19 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
         except Exception:
             return False
 
+    def _close_active_message_boxes(self, page) -> bool:
+        """Helper to detect and close any active LinkedIn message boxes or overlays."""
+        return close_active_message_boxes(page)
+
     def _send_connection(self, page, lead: dict, ghost_run: bool = False) -> tuple[bool, str]:
         """
         Find and click the Connect button, handle the modal, and 'send'.
         Returns (success, status_message).
         """
         name = lead.get("name", "Unknown")
+
+        # ── Start of connection request flow: Check and close any active message box first ──
+        self._close_active_message_boxes(page)
 
         for attempt in (1, 2):
             try:
@@ -696,15 +707,8 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                 except Exception:
                     pass
 
-                # Dismiss any lingering chat overlays / bubbles so they never intercept clicks or get mistaken for connection modals
-                try:
-                    page.evaluate("""
-                        () => {
-                            document.querySelectorAll('.msg-overlay-bubble-header__control--close, .msg-overlay-conversation-bubble [data-control-name="overlay.close_conversation_window"]').forEach(el => el.click());
-                        }
-                    """)
-                except Exception:
-                    pass
+                # Guard: Re-check in case hydration reopened a chat overlay
+                self._close_active_message_boxes(page)
 
                 # --- 1. CHECK FOR ACTUAL RESTRICTIONS / PENDING STATES ---
                 if page.locator("button:has-text('Pending')").first.is_visible(timeout=1500):
@@ -1183,6 +1187,9 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                     except Exception:
                         pass
                 return leads
+
+            # Dismiss any lingering message boxes from previous agent runs (e.g. InboxAgent)
+            self._close_active_message_boxes(page)
 
             # ── Process leads with retry queue & non-overlapping batch sleeps ──
             try:

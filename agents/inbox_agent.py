@@ -24,6 +24,8 @@ from rich.panel import Panel
 load_dotenv()
 console = Console()
 
+from utils.safety import close_active_message_boxes
+
 CONNECTIONS_URL = "https://www.linkedin.com/mynetwork/invite-connect/connections/"
 DATA_DIR = Path(__file__).parent.parent / "data"
 SESSION_PATH = DATA_DIR / "linkedin_session.json"
@@ -459,23 +461,7 @@ class InboxAgent:
             # ── Close any lingering LinkedIn chat panels from previous DMs ──────
             # After each send, or upon page load, LinkedIn might open chat bubbles.
             # These stack up and push the new compose box out of the viewport.
-            # It's crucial to do this AFTER page load/hydration.
-            try:
-                close_btns = page.locator(
-                    "button[aria-label='Close your conversation'], "
-                    "button[aria-label*='Close'], "
-                    "button.msg-overlay-bubble-header__control--close, "
-                    "button.msg-overlay-conversation-bubble__button-close"
-                ).all()
-                for btn in close_btns:
-                    try:
-                        if btn.is_visible(timeout=500):
-                            btn.click(force=True)
-                            page.wait_for_timeout(300)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+            close_active_message_boxes(page)
             # ─────────────────────────────────────────────────────────────────────
 
             # Guard: if we landed on login/authwall, skip this lead
@@ -760,15 +746,7 @@ class InboxAgent:
             console.print(f"  [green]  ✓ DM sent to {name}[/green]")
 
             # Clean up: close the conversation overlay so it doesn't linger or interfere with next tasks
-            try:
-                close_btn = page.locator(".msg-overlay-bubble-header__control--close, button[data-control-name='overlay.close_conversation_window'], button[aria-label*='Close conversation']").first
-                if close_btn.is_visible(timeout=800):
-                    close_btn.click(timeout=1000)
-            except Exception:
-                try:
-                    page.keyboard.press("Escape")
-                except Exception:
-                    pass
+            close_active_message_boxes(page)
 
             return True
 
@@ -872,6 +850,11 @@ class InboxAgent:
                         retry_queue.clear()
             except KeyboardInterrupt:
                 console.print("\n[yellow]Closer interrupted by user. Stopping DM sending immediately...[/yellow]")
+
+            try:
+                close_active_message_boxes(page)
+            except Exception:
+                pass
 
             self._save_session(context)
             if not is_remote:
