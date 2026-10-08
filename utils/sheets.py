@@ -111,7 +111,7 @@ def _worker_loop() -> None:
         # Initialize sheets client lazily inside the worker thread
         if client is None or not client.available:
             try:
-                client = SheetsClient(start_worker=False)
+                client = SheetsClient(start_worker=False, lazy_setup=False)
             except Exception:
                 time.sleep(3.0)
                 continue
@@ -129,13 +129,24 @@ def _worker_loop() -> None:
                 _save_persisted_queue()
                 time.sleep(1.0)  # Gentle spacing between operations (respects 60 req/min limit)
             else:
-                task["attempts"] = task.get("attempts", 0) + 1
+                attempts = task.get("attempts", 0) + 1
+                task["attempts"] = attempts
+                if attempts >= 3:
+                    with _queue_lock:
+                        if _queue and _queue[0] == task:
+                            _queue.popleft()
+                    console.print(f"[dim]ℹ Sheet update for {task.get('url', task.get('name', 'lead'))} resolved/dropped after {attempts} attempts.[/dim]")
                 _save_persisted_queue()
-                time.sleep(4.0)  # Wait before retry
+                time.sleep(3.0)  # Wait before retry
         except Exception as e:
-            task["attempts"] = task.get("attempts", 0) + 1
+            attempts = task.get("attempts", 0) + 1
+            task["attempts"] = attempts
+            if attempts >= 3:
+                with _queue_lock:
+                    if _queue and _queue[0] == task:
+                        _queue.popleft()
             _save_persisted_queue()
-            time.sleep(4.0)
+            time.sleep(3.0)
 
 
 # Initialize persistent queue loading at module import
@@ -143,16 +154,19 @@ _load_persisted_queue()
 
 
 class SheetsClient:
-    def __init__(self, start_worker: bool = True):
+    def __init__(self, start_worker: bool = True, lazy_setup: bool = True):
         self._sheet = None
         self._gc = None
         self._spreadsheet = None
-        self._setup()
+        self._setup_attempted = False
+        if not lazy_setup:
+            self._setup()
         if start_worker:
             _start_worker()
 
     def _setup(self):
         """Authenticate and open the Google Sheet."""
+        self._setup_attempted = True
         sheet_id = os.getenv("GOOGLE_SHEET_ID", "")
         if not sheet_id or sheet_id.startswith("your_"):
             console.print("[yellow]GOOGLE_SHEET_ID not set — Sheet logging disabled[/yellow]")
@@ -165,7 +179,7 @@ class SheetsClient:
             )
             return
 
-        max_attempts = 3
+        max_attempts = 2
         for attempt in range(1, max_attempts + 1):
             try:
                 import gspread
@@ -191,15 +205,20 @@ class SheetsClient:
                 break
             except Exception as e:
                 if attempt < max_attempts:
-                    console.print(f"[yellow]⚠ Sheets setup attempt {attempt} failed ({e}). Retrying in 2s...[/yellow]")
-                    time.sleep(2.0)
+                    console.print(f"[yellow]⚠ Sheets setup attempt {attempt} failed ({e}). Retrying in 1s...[/yellow]")
+                    time.sleep(1.0)
                 else:
                     console.print(f"[red]Sheets setup error: {e}[/red]")
                     self._sheet = None
 
+    def _ensure_setup(self) -> bool:
+        if self._sheet is None and not self._setup_attempted:
+            self._setup()
+        return self._sheet is not None
+
     @property
     def available(self) -> bool:
-        return self._sheet is not None
+        return self._ensure_setup()
 
     def _find_row_by_url(self, profile_url: str) -> Optional[int]:
         """Find row index for a profile URL using fast Column E search + memory cache."""
@@ -218,7 +237,8 @@ class SheetsClient:
                     u_norm = u.strip().lower()
                     if u_norm:
                         _url_cache[u_norm] = idx
-            with _url_cache_lock:
+                if norm_url not in _url_cache:
+                    _url_cache[norm_url] = None
                 return _url_cache.get(norm_url)
         except Exception as e:
             console.print(f"[dim]Column URL search note: {e}[/dim]")
@@ -498,6 +518,8 @@ class SheetsClient:
             row_idx = self._find_row_by_url(profile_url)
             if row_idx:
                 return self._safe_update_cell(row_idx, COL_STATUS + 1, status)
+            # Lead not found in sheet: nothing to update, mark resolved so queue is not blocked
+            return True
         except Exception as e:
             console.print(f"[dim]Status update note: {e}[/dim]")
         return False
@@ -524,6 +546,8 @@ class SheetsClient:
                 if new_note:
                     self._safe_update_cell(row_idx, COL_NOTE + 1, new_note)
                 return True
+            # Lead not in sheet: mark resolved
+            return True
         except Exception as e:
             console.print(f"[dim]Error updating company/role in sheet: {e}[/dim]")
         return False
@@ -554,6 +578,8 @@ class SheetsClient:
                     row_status = str(row.get("Status", "")).strip()
                     if row_status in ("Blank Sent", "Request Sent", ""):
                         return self._safe_update_cell(i, COL_STATUS + 1, status)
+            # Not found in sheet: mark resolved
+            return True
         except Exception as e:
             console.print(f"[dim]Name-based status update note: {e}[/dim]")
         return False

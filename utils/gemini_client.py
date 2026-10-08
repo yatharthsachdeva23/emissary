@@ -169,7 +169,7 @@ def generate_with_rotation(
             if now - last_exhausted < QUOTA_COOLDOWN_SECONDS:
                 continue
 
-            client = genai.Client(api_key=key, http_options={"timeout": 25000})
+            client = genai.Client(api_key=key, http_options={"timeout": 12000})
             try:
                 kwargs = {"model": current_model, "contents": payload}
                 if config is not None:
@@ -235,7 +235,7 @@ def get_client_with_rotation() -> tuple["genai.Client", str]:
         raise RuntimeError("No Gemini API keys configured.")
     
     idx = _current_idx % len(keys)
-    return genai.Client(api_key=keys[idx], http_options={"timeout": 25000}), f"Key {idx + 1}"
+    return genai.Client(api_key=keys[idx], http_options={"timeout": 12000}), f"Key {idx + 1}"
 
 
 def mark_key_exhausted() -> None:
