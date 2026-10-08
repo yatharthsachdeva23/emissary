@@ -628,20 +628,13 @@ class InboxAgent:
             if correct_resume_link:
                 dm = re.sub(r'https?://drive\.google\.com/drive/folders/[a-zA-Z0-9_-]+', correct_resume_link, dm)
 
-            # ── TYPE the DM safely with Shift+Enter for newlines ─────────────────
-            # CRITICAL: If dm contains '\n', page.keyboard.type() presses Enter.
-            # On LinkedIn, pressing Enter sends the message prematurely if 'Press Enter to send' is active.
-            # Using Shift+Enter for newlines guarantees multiline text is typed cleanly without premature send.
-            # Using delay=10 gives natural typing speed without stalling (8-10s instead of 45s).
-            lines = dm.split("\n")
-            for idx_line, line in enumerate(lines):
-                if line:
-                    page.keyboard.type(line, delay=10)
-                if idx_line < len(lines) - 1:
-                    page.keyboard.press("Shift+Enter")
-                    page.wait_for_timeout(80)
-
-            page.wait_for_timeout(600)
+            # ── TYPE the DM using real keystrokes ───────────────────────────────
+            # CRITICAL: compose_box.fill() does NOT work on contenteditable divs.
+            # LinkedIn's React state only updates on real keyboard events (onChange).
+            # We must use page.keyboard.type() to simulate actual keypresses.
+            # ────────────────────────────────────────────────────────────────────
+            page.keyboard.type(dm, delay=30)  # 30ms delay between chars = human-like
+            self._human_sleep(1.0, 2.0)
 
             if ghost_run:
                 console.print(f"  [dim]  GHOST RUN: DM typed for {name} but NOT sent.[/dim]")
@@ -651,73 +644,40 @@ class InboxAgent:
                     pass
                 return True
 
-            # ── SEND: Cascading multi-trigger send logic ──────────────────────────
+            # Send: try the Send button first, fall back to Ctrl+Enter then Enter
             sent = False
             send_selectors = [
-                'button.msg-form__send-button:not([disabled])',
-                '.msg-form__send-button:not([disabled])',
-                'button[aria-label="Send"]:not([disabled])',
-                'button[type="submit"]:has-text("Send"):not([disabled])',
-                'button:has-text("Send"):not([disabled])',
                 '.msg-form__send-button',
                 'button.msg-form__send-button',
+                'button[aria-label="Send"]',
+                'button:has-text("Send")',
+                'button[type="submit"]:has-text("Send")',
             ]
-            for _ in range(3):
+            for _ in range(4):
                 for sel in send_selectors:
                     try:
                         btns = page.locator(sel).all()
-                        for b in btns:
-                            if b.is_visible() and not b.is_disabled():
+                        visible_btns = [b for b in btns if b.is_visible()]
+                        if visible_btns:
+                            btn = visible_btns[-1]
+                            try:
+                                page.evaluate("el => el && el.scrollIntoView({block: 'center', inline: 'nearest'})", btn)
+                            except Exception:
                                 try:
-                                    b.scroll_into_view_if_needed(timeout=1000)
+                                    btn.scroll_into_view_if_needed(timeout=1500)
                                 except Exception:
                                     pass
-                                b.click()
-                                sent = True
-                                break
+                            btn.click(force=True)
+                            sent = True
+                            break
                     except Exception:
                         continue
                 if sent:
                     break
-                page.wait_for_timeout(400)
+                page.wait_for_timeout(500)
 
-            # Keyboard shortcut fallbacks
             if not sent:
-                try:
-                    compose_box.focus()
-                except Exception:
-                    pass
-                # Try Control+Enter
                 page.keyboard.press("Control+Enter")
-                page.wait_for_timeout(400)
-                # Try Enter (in case 'Press Enter to send' is active)
-                try:
-                    current_txt = compose_box.inner_text().strip()
-                    if current_txt:
-                        page.keyboard.press("Enter")
-                        page.wait_for_timeout(400)
-                except Exception:
-                    pass
-
-            # JavaScript direct trigger fallback
-            try:
-                page.evaluate("""
-                    () => {
-                        const sendBtns = Array.from(document.querySelectorAll(
-                            'button.msg-form__send-button, form.msg-form button[type="submit"]'
-                        ));
-                        const btn = sendBtns.find(b => {
-                            const r = b.getBoundingClientRect();
-                            return r.width > 0 && r.height > 0;
-                        });
-                        if (btn) {
-                            btn.removeAttribute('disabled');
-                            btn.click();
-                        }
-                    }
-                """)
-            except Exception:
-                pass
 
             # ── Verification: Multi-layer ground-truth check (chat history + compose box) ──
             # Prevents false negatives from LinkedIn placeholder text ("Write a message...")
