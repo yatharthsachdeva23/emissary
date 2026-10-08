@@ -358,6 +358,12 @@ def main():
         traceback.print_exc()
 
     finally:
+        # Flush pending background Google Sheets updates before terminating
+        try:
+            from utils.sheets import SheetsClient
+            SheetsClient.flush_queue(timeout=10.0)
+        except Exception:
+            pass
         write_run_log(run_summary)
 
     # ── Final summary ──────────────────────────────────────────────────────

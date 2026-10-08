@@ -1,6 +1,10 @@
 from __future__ import annotations
+import collections
 import json
 import os
+import socket
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -8,10 +12,15 @@ from typing import Optional
 from dotenv import load_dotenv
 from rich.console import Console
 
+# Set default global socket timeout so no network operation hangs indefinitely
+socket.setdefaulttimeout(15.0)
+
 load_dotenv()
 console = Console()
 
+DATA_DIR = Path(__file__).parent.parent / "data"
 CREDS_PATH = Path(__file__).parent.parent / "credentials.json"
+QUEUE_FILE = DATA_DIR / "sheet_queue.json"
 
 # Sheet column indices (0-based)
 COL_DATE = 0
@@ -32,11 +41,115 @@ HEADERS = [
     "Your Feedback", "Feedback Applied"
 ]
 
+# ── Global FIFO Queue & Worker State ──────────────────────────────────────────
+_queue = collections.deque()
+_queue_lock = threading.Lock()
+_worker_thread: Optional[threading.Thread] = None
+_worker_running: bool = False
+_url_cache: dict[str, int] = {}
+_url_cache_lock = threading.Lock()
+_queue_loaded: bool = False
+
+
+def _load_persisted_queue() -> None:
+    global _queue, _queue_loaded
+    if _queue_loaded:
+        return
+    _queue_loaded = True
+    if QUEUE_FILE.exists():
+        try:
+            with open(QUEUE_FILE, "r", encoding="utf-8") as f:
+                items = json.load(f)
+            with _queue_lock:
+                _queue = collections.deque(items)
+            if items:
+                console.print(f"[cyan]ℹ Loaded {len(items)} pending Google Sheet update(s) from queue file.[/cyan]")
+        except Exception as e:
+            console.print(f"[dim]Queue load warning: {e}[/dim]")
+
+
+def _save_persisted_queue() -> None:
+    with _queue_lock:
+        items = list(_queue)
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with open(QUEUE_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        console.print(f"[dim]Queue save warning: {e}[/dim]")
+
+
+def _enqueue_task(task_dict: dict) -> None:
+    _load_persisted_queue()
+    with _queue_lock:
+        _queue.append(task_dict)
+    _save_persisted_queue()
+    _start_worker()
+
+
+def _start_worker() -> None:
+    global _worker_thread, _worker_running
+    if _worker_running and _worker_thread and _worker_thread.is_alive():
+        return
+    _worker_running = True
+    _worker_thread = threading.Thread(target=_worker_loop, daemon=True, name="SheetQueueWorker")
+    _worker_thread.start()
+
+
+def _worker_loop() -> None:
+    global _worker_running
+    client: Optional[SheetsClient] = None
+    while _worker_running:
+        task = None
+        with _queue_lock:
+            if _queue:
+                task = _queue[0]  # Peek FIFO front item
+        if not task:
+            time.sleep(1.0)
+            continue
+
+        # Initialize sheets client lazily inside the worker thread
+        if client is None or not client.available:
+            try:
+                client = SheetsClient(start_worker=False)
+            except Exception:
+                time.sleep(3.0)
+                continue
+
+        if not client.available:
+            time.sleep(3.0)
+            continue
+
+        try:
+            success = client._process_queued_task(task)
+            if success:
+                with _queue_lock:
+                    if _queue and _queue[0] == task:
+                        _queue.popleft()
+                _save_persisted_queue()
+                time.sleep(1.0)  # Gentle spacing between operations (respects 60 req/min limit)
+            else:
+                task["attempts"] = task.get("attempts", 0) + 1
+                _save_persisted_queue()
+                time.sleep(4.0)  # Wait before retry
+        except Exception as e:
+            task["attempts"] = task.get("attempts", 0) + 1
+            _save_persisted_queue()
+            time.sleep(4.0)
+
+
+# Initialize persistent queue loading at module import
+_load_persisted_queue()
+
 
 class SheetsClient:
-    def __init__(self):
+    def __init__(self, start_worker: bool = True):
         self._sheet = None
+        self._gc = None
+        self._spreadsheet = None
         self._setup()
+        if start_worker:
+            _start_worker()
 
     def _setup(self):
         """Authenticate and open the Google Sheet."""
@@ -52,7 +165,6 @@ class SheetsClient:
             )
             return
 
-        import time
         max_attempts = 3
         for attempt in range(1, max_attempts + 1):
             try:
@@ -89,12 +201,54 @@ class SheetsClient:
     def available(self) -> bool:
         return self._sheet is not None
 
+    def _find_row_by_url(self, profile_url: str) -> Optional[int]:
+        """Find row index for a profile URL using fast Column E search + memory cache."""
+        if not profile_url or not self.available:
+            return None
+        norm_url = profile_url.strip().lower()
+        with _url_cache_lock:
+            if norm_url in _url_cache:
+                return _url_cache[norm_url]
+
+        # Populate cache from column E (Profile URL)
+        try:
+            urls = self._sheet.col_values(COL_URL + 1)
+            with _url_cache_lock:
+                for idx, u in enumerate(urls, start=1):
+                    u_norm = u.strip().lower()
+                    if u_norm:
+                        _url_cache[u_norm] = idx
+            with _url_cache_lock:
+                return _url_cache.get(norm_url)
+        except Exception as e:
+            console.print(f"[dim]Column URL search note: {e}[/dim]")
+            return None
+
+    def _safe_update_row_range(self, row_idx: int, values: list) -> bool:
+        """
+        Safely update columns B through I in a SINGLE API call instead of 5 individual cell calls.
+        values: [name, company, role, profile_url, note, drafted_dm, score, status]
+        """
+        from utils.network import is_network_error, wait_for_network_recovery
+        range_name = f"B{row_idx}:I{row_idx}"
+        for attempt in range(1, 4):
+            try:
+                self._sheet.update(range_name=range_name, values=[values], value_input_option="USER_ENTERED")
+                return True
+            except Exception as e:
+                if is_network_error(e) and attempt < 3:
+                    console.print(f"[yellow]⚠ Network lost during Sheet row update. Waiting for Wi-Fi recovery...[/yellow]")
+                    if wait_for_network_recovery(max_wait_seconds=600, check_interval_seconds=30):
+                        continue
+                if attempt < 3:
+                    time.sleep(1.5)
+        return False
+
     def _safe_update_cell(self, row: int, col: int, value: any) -> bool:
         """
         Safely update a single cell with network recovery and retry mechanism.
         If all retries fail, registers the update to be flushed at the end of the run.
         """
-        import time
         from utils.network import is_network_error, wait_for_network_recovery
         for attempt in range(1, 4):
             try:
@@ -127,7 +281,6 @@ class SheetsClient:
         """
         Safely append a single row to the sheet with network recovery and retry mechanism.
         """
-        import time
         from utils.network import is_network_error, wait_for_network_recovery
         for attempt in range(1, 4):
             try:
@@ -150,11 +303,8 @@ class SheetsClient:
 
     def register_failed_update(self, info: dict) -> None:
         """Record a failed cell update to data/failed_sheet_updates.json for end-of-run reporting."""
-        import json
-        data_dir = Path(__file__).parent.parent / "data"
-        data_dir.mkdir(parents=True, exist_ok=True)
-        file_path = data_dir / "failed_sheet_updates.json"
-        
+        file_path = DATA_DIR / "failed_sheet_updates.json"
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
         failed_list = []
         if file_path.exists():
             try:
@@ -162,8 +312,6 @@ class SheetsClient:
                     failed_list = json.load(f)
             except Exception:
                 pass
-        
-        # Avoid duplicate failures for the same cell
         duplicate = False
         for item in failed_list:
             if item.get("row") == info["row"] and item.get("col") == info["col"]:
@@ -171,10 +319,8 @@ class SheetsClient:
                 item["timestamp"] = info["timestamp"]
                 duplicate = True
                 break
-        
         if not duplicate:
             failed_list.append(info)
-            
         try:
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(failed_list, f, indent=4)
@@ -184,8 +330,7 @@ class SheetsClient:
     @staticmethod
     def get_and_clear_failed_updates() -> list[dict]:
         """Retrieve all registered failed updates and clear the registry file."""
-        import json
-        file_path = Path(__file__).parent.parent / "data" / "failed_sheet_updates.json"
+        file_path = DATA_DIR / "failed_sheet_updates.json"
         if not file_path.exists():
             return []
         try:
@@ -196,11 +341,105 @@ class SheetsClient:
         except Exception:
             return []
 
-    def log_or_update_lead(self, lead: dict) -> bool:
+    # ── Non-blocking Queued API (0ms latency for LinkedIn) ────────────────────
+
+    def log_or_update_lead(self, lead: dict, async_mode: bool = True) -> bool:
         """
-        Immediately log a newly sent lead to the Google Sheet in real time, or update it if it exists.
-        Ensures 100% real-time persistence so no data is lost on Ctrl-C.
+        Immediately enqueues lead to background FIFO queue (0ms latency for LinkedIn),
+        or performs synchronous update if async_mode is False.
         """
+        if not lead:
+            return False
+        lead["sheet_logged"] = True  # Mark locally logged immediately
+
+        if async_mode:
+            _enqueue_task({
+                "action": "log_or_update",
+                "lead": lead,
+                "timestamp": datetime.now().isoformat(),
+                "attempts": 0
+            })
+            return True
+        return self._sync_log_or_update_lead(lead)
+
+    def update_status(self, profile_url: str, status: str, async_mode: bool = True) -> bool:
+        """Update status column for lead. Non-blocking when async_mode=True."""
+        if not profile_url:
+            return False
+        if async_mode:
+            _enqueue_task({
+                "action": "update_status",
+                "url": profile_url,
+                "status": status,
+                "timestamp": datetime.now().isoformat(),
+                "attempts": 0
+            })
+            return True
+        return self._sync_update_status(profile_url, status)
+
+    def update_status_by_name(self, name: str, status: str, url: str = "", async_mode: bool = True) -> bool:
+        """Update status by name/url. Non-blocking when async_mode=True."""
+        if async_mode:
+            _enqueue_task({
+                "action": "update_status_by_name",
+                "name": name,
+                "status": status,
+                "url": url,
+                "timestamp": datetime.now().isoformat(),
+                "attempts": 0
+            })
+            return True
+        return self._sync_update_status_by_name(name, status, url)
+
+    def update_lead_company_and_dm(
+        self,
+        profile_url: str,
+        new_company: str,
+        new_role: str = "",
+        new_dm: str = "",
+        new_note: str = "",
+        async_mode: bool = True
+    ) -> bool:
+        """Update company/role/DM. Non-blocking when async_mode=True."""
+        if not profile_url:
+            return False
+        if async_mode:
+            _enqueue_task({
+                "action": "update_company_dm",
+                "url": profile_url,
+                "company": new_company,
+                "role": new_role,
+                "dm": new_dm,
+                "note": new_note,
+                "timestamp": datetime.now().isoformat(),
+                "attempts": 0
+            })
+            return True
+        return self._sync_update_lead_company_and_dm(profile_url, new_company, new_role, new_dm, new_note)
+
+    # ── Background Worker Processing Method ───────────────────────────────────
+
+    def _process_queued_task(self, task: dict) -> bool:
+        action = task.get("action")
+        if action == "log_or_update":
+            return self._sync_log_or_update_lead(task.get("lead", {}))
+        elif action == "update_status":
+            return self._sync_update_status(task.get("url", ""), task.get("status", ""))
+        elif action == "update_status_by_name":
+            return self._sync_update_status_by_name(task.get("name", ""), task.get("status", ""), task.get("url", ""))
+        elif action == "update_company_dm":
+            return self._sync_update_lead_company_and_dm(
+                task.get("url", ""),
+                task.get("company", ""),
+                task.get("role", ""),
+                task.get("dm", ""),
+                task.get("note", "")
+            )
+        return True
+
+    # ── Synchronous Underlying Execution Implementations ──────────────────────
+
+    def _sync_log_or_update_lead(self, lead: dict) -> bool:
         if not self.available or not lead:
             return False
 
@@ -218,28 +457,14 @@ class SheetsClient:
         status = lead.get("status", "Blank Sent")
 
         try:
-            cell = None
-            if profile_url:
-                try:
-                    cell = self._sheet.find(profile_url)
-                except Exception:
-                    cell = None
-
-            if cell:
-                row_idx = cell.row
-                if company:
-                    self._safe_update_cell(row_idx, COL_COMPANY + 1, company)
-                if role:
-                    self._safe_update_cell(row_idx, COL_ROLE + 1, role)
-                if drafted_dm:
-                    self._safe_update_cell(row_idx, COL_DM + 1, drafted_dm)
-                if note:
-                    self._safe_update_cell(row_idx, COL_NOTE + 1, note)
-                if status:
-                    self._safe_update_cell(row_idx, COL_STATUS + 1, status)
-                console.print(f"  [green]✓ Real-time Google Sheet updated for row {row_idx} ({name})[/green]")
-                lead["sheet_logged"] = True
-                return True
+            row_idx = self._find_row_by_url(profile_url)
+            if row_idx:
+                row_values = [name, company, role, profile_url, note, drafted_dm, score, status]
+                ok = self._safe_update_row_range(row_idx, row_values)
+                if ok:
+                    console.print(f"  [green]✓ Real-time Google Sheet updated for row {row_idx} ({name})[/green]")
+                    return True
+                return False
             else:
                 row = [
                     datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -257,19 +482,86 @@ class SheetsClient:
                 ok = self._safe_append_row(row)
                 if ok:
                     console.print(f"  [green]✓ Real-time Google Sheet logged new row for {name} @ {company}[/green]")
-                    lead["sheet_logged"] = True
+                    with _url_cache_lock:
+                        if profile_url:
+                            _url_cache[profile_url.lower()] = len(_url_cache) + 2
                     return True
                 return False
         except Exception as e:
-            console.print(f"  [red]Real-time sheet log/update error for {name}: {e}[/red]")
+            console.print(f"  [dim]Real-time sheet log/update note for {name}: {e}[/dim]")
             return False
+
+    def _sync_update_status(self, profile_url: str, status: str) -> bool:
+        if not self.available or not profile_url:
+            return False
+        try:
+            row_idx = self._find_row_by_url(profile_url)
+            if row_idx:
+                return self._safe_update_cell(row_idx, COL_STATUS + 1, status)
+        except Exception as e:
+            console.print(f"[dim]Status update note: {e}[/dim]")
+        return False
+
+    def _sync_update_lead_company_and_dm(
+        self,
+        profile_url: str,
+        new_company: str,
+        new_role: str = "",
+        new_dm: str = "",
+        new_note: str = ""
+    ) -> bool:
+        if not self.available or not profile_url:
+            return False
+        try:
+            row_idx = self._find_row_by_url(profile_url)
+            if row_idx:
+                if new_company:
+                    self._safe_update_cell(row_idx, COL_COMPANY + 1, new_company)
+                if new_role:
+                    self._safe_update_cell(row_idx, COL_ROLE + 1, new_role)
+                if new_dm:
+                    self._safe_update_cell(row_idx, COL_DM + 1, new_dm)
+                if new_note:
+                    self._safe_update_cell(row_idx, COL_NOTE + 1, new_note)
+                return True
+        except Exception as e:
+            console.print(f"[dim]Error updating company/role in sheet: {e}[/dim]")
+        return False
+
+    def _sync_update_status_by_name(self, name: str, status: str, url: str = "") -> bool:
+        if not self.available:
+            return False
+
+        if url:
+            row_idx = self._find_row_by_url(url)
+            if row_idx:
+                return self._safe_update_cell(row_idx, COL_STATUS + 1, status)
+
+        try:
+            all_rows = self._sheet.get_all_records()
+            clean_name = name.strip().lower() if name else ""
+            clean_url = url.strip().lower() if url else ""
+            for i, row in enumerate(all_rows, start=2):
+                sheet_name = str(row.get("Name", "")).strip().lower()
+                sheet_url = str(row.get("Profile URL", "")).strip().lower()
+                is_match = False
+                if clean_url and sheet_url and clean_url in sheet_url:
+                    is_match = True
+                elif sheet_name and clean_name and (sheet_name in clean_name or clean_name in sheet_name):
+                    is_match = True
+
+                if is_match:
+                    row_status = str(row.get("Status", "")).strip()
+                    if row_status in ("Blank Sent", "Request Sent", ""):
+                        return self._safe_update_cell(i, COL_STATUS + 1, status)
+        except Exception as e:
+            console.print(f"[dim]Name-based status update note: {e}[/dim]")
+        return False
 
     def log_leads(self, leads: list[dict]) -> int:
         """Append sent leads to the sheet. Returns number logged."""
         if not self.available:
             return 0
-
-        # Only log leads that were not already logged in real-time
         leads_to_log = [l for l in leads if not l.get("sheet_logged")]
         if not leads_to_log:
             return 0
@@ -299,100 +591,13 @@ class SheetsClient:
             self._sheet.append_rows(rows, value_input_option="USER_ENTERED")
             for lead in leads_to_log:
                 lead["sheet_logged"] = True
-            console.print(f"[green]✓ Logged {len(rows)} leads to Google Sheet[/green]")
             return len(rows)
         except Exception as e:
             console.print(f"[red]Sheet log error: {e}[/red]")
             return 0
 
-    def update_status(self, profile_url: str, status: str) -> bool:
-        """Update the status column for a specific lead by profile URL."""
-        if not self.available or not profile_url:
-            return False
-        try:
-            cell = self._sheet.find(profile_url)
-            if cell:
-                return self._safe_update_cell(cell.row, COL_STATUS + 1, status)
-        except Exception as e:
-            console.print(f"[red]Status update error: {e}[/red]")
-        return False
-
-    def update_lead_company_and_dm(
-        self,
-        profile_url: str,
-        new_company: str,
-        new_role: str = "",
-        new_dm: str = "",
-        new_note: str = ""
-    ) -> bool:
-        """
-        Update the Company, Role, Drafted_DM, and optionally Connection Note for a lead by profile URL.
-        Used when profile verification discovers the lead has moved to a new company.
-        """
-        if not self.available or not profile_url:
-            return False
-        try:
-            cell = self._sheet.find(profile_url)
-            if cell:
-                row_idx = cell.row
-                if new_company:
-                    self._safe_update_cell(row_idx, COL_COMPANY + 1, new_company)
-                if new_role:
-                    self._safe_update_cell(row_idx, COL_ROLE + 1, new_role)
-                if new_dm:
-                    self._safe_update_cell(row_idx, COL_DM + 1, new_dm)
-                if new_note:
-                    self._safe_update_cell(row_idx, COL_NOTE + 1, new_note)
-                return True
-        except Exception as e:
-            console.print(f"[red]Error updating company/role in sheet: {e}[/red]")
-        return False
-
-    def update_status_by_name(self, name: str, status: str, url: str = "") -> bool:
-        """
-        Update the status for a lead found by URL (exact, fastest) or fuzzy name match.
-        Used by InboxAgent after sending DMs.
-        Returns True if a matching row was found and updated.
-        """
-        if not self.available:
-            return False
-
-        # Fast path: update by exact URL if provided
-        if url:
-            try:
-                cell = self._sheet.find(url)
-                if cell:
-                    return self._safe_update_cell(cell.row, COL_STATUS + 1, status)
-            except Exception:
-                pass
-
-        # Fallback path: search records by name
-        try:
-            all_rows = self._sheet.get_all_records()
-            clean_name = name.strip().lower() if name else ""
-            clean_url = url.strip().lower() if url else ""
-            for i, row in enumerate(all_rows, start=2):  # +2 for header + 1-indexed
-                sheet_name = str(row.get("Name", "")).strip().lower()
-                sheet_url = str(row.get("Profile URL", "")).strip().lower()
-                is_match = False
-                if clean_url and sheet_url and clean_url in sheet_url:
-                    is_match = True
-                elif sheet_name and clean_name and (sheet_name in clean_name or clean_name in sheet_name):
-                    is_match = True
-
-                if is_match:
-                    row_status = str(row.get("Status", "")).strip()
-                    if row_status in ("Blank Sent", "Request Sent", ""):
-                        return self._safe_update_cell(i, COL_STATUS + 1, status)
-        except Exception as e:
-            console.print(f"[red]Name-based status update error: {e}[/red]")
-        return False
-
     def get_blank_sent_leads(self) -> list[dict]:
-        """
-        Return all leads where Status == 'Blank Sent'.
-        Used by InboxAgent to build the execution queue.
-        """
+        """Return all leads where Status == 'Blank Sent'."""
         if not self.available:
             return []
         try:
@@ -412,17 +617,13 @@ class SheetsClient:
             return []
 
     def get_pending_feedback(self) -> list[dict]:
-        """
-        Return rows where 'Your Feedback' is filled but 'Feedback Applied' = 'No'.
-        These are the rows the feedback agent will learn from.
-        """
+        """Return rows where 'Your Feedback' is filled but 'Feedback Applied' = 'No'."""
         if not self.available:
             return []
-
         try:
             all_rows = self._sheet.get_all_records()
             pending = []
-            for i, row in enumerate(all_rows, start=2):  # +2 for header + 1-indexed
+            for i, row in enumerate(all_rows, start=2):
                 feedback = str(row.get("Your Feedback", "")).strip()
                 applied = str(row.get("Feedback Applied", "No")).strip().lower()
                 if feedback and applied == "no":
@@ -447,7 +648,7 @@ class SheetsClient:
             return
         try:
             for row_idx in row_indices:
-                self._sheet.update_cell(row_idx, COL_FEEDBACK_APPLIED + 1, "Yes")
+                self._safe_update_cell(row_idx, COL_FEEDBACK_APPLIED + 1, "Yes")
         except Exception as e:
             console.print(f"[red]Mark feedback error: {e}[/red]")
 
@@ -457,6 +658,16 @@ class SheetsClient:
             return set()
         try:
             col = self._sheet.col_values(COL_URL + 1)
-            return set(url.strip() for url in col[1:] if url.strip())  # skip header
+            return set(url.strip() for url in col[1:] if url.strip())
         except Exception:
             return set()
+
+    @classmethod
+    def flush_queue(cls, timeout: float = 12.0) -> None:
+        """Wait for background queue to drain up to timeout seconds."""
+        start = time.time()
+        while time.time() - start < timeout:
+            with _queue_lock:
+                if not _queue:
+                    return
+            time.sleep(0.5)

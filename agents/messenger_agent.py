@@ -962,6 +962,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                         "button:has-text('Send invitation')",
                         "button[aria-label*='Send now' i]",
                         "button:has-text('Send now')",
+                        "button:text-is('Send')",
                     ]
                     for sel in send_blank_selectors:
                         try:
