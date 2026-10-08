@@ -23,6 +23,10 @@ from utils.gemini_client import has_gemini_keys
 # ── Make sure project root is on the path ────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Prioritize IPv4 sockets immediately to avoid 40-190s Windows IPv6 dead-route timeouts
+from utils.network import enable_ipv4_priority
+enable_ipv4_priority()
+
 LOG_FILE_PATH = Path("logs") / "emissary.log"
 Path("logs").mkdir(exist_ok=True)
 

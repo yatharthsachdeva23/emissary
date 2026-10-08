@@ -11,9 +11,13 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from rich.console import Console
+from utils.network import enable_ipv4_priority
+
+# Prioritize IPv4 to avoid 40-190s Google Sheets connection stalls on Windows
+enable_ipv4_priority()
 
 # Set default global socket timeout so no network operation hangs indefinitely
-socket.setdefaulttimeout(15.0)
+socket.setdefaulttimeout(20.0)
 
 load_dotenv()
 console = Console()
@@ -63,7 +67,7 @@ def _load_persisted_queue() -> None:
             with _queue_lock:
                 _queue = collections.deque(items)
             if items:
-                console.print(f"[cyan]ℹ Loaded {len(items)} pending Google Sheet update(s) from queue file.[/cyan]")
+                console.print(f"[cyan][i] Loaded {len(items)} pending Google Sheet update(s) from queue file.[/cyan]")
         except Exception as e:
             console.print(f"[dim]Queue load warning: {e}[/dim]")
 
@@ -135,7 +139,7 @@ def _worker_loop() -> None:
                     with _queue_lock:
                         if _queue and _queue[0] == task:
                             _queue.popleft()
-                    console.print(f"[dim]ℹ Sheet update for {task.get('url', task.get('name', 'lead'))} resolved/dropped after {attempts} attempts.[/dim]")
+                    console.print(f"[dim][i] Sheet update for {task.get('url', task.get('name', 'lead'))} resolved/dropped after {attempts} attempts.[/dim]")
                 _save_persisted_queue()
                 time.sleep(3.0)  # Wait before retry
         except Exception as e:

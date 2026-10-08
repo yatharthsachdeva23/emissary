@@ -30,6 +30,10 @@ from dotenv import load_dotenv
 from rich.console import Console
 import sys
 import io
+from utils.network import enable_ipv4_priority
+
+# Prioritize IPv4 sockets immediately to prevent 40-80s timeouts on Windows
+enable_ipv4_priority()
 
 if hasattr(sys.stdout, "reconfigure"):
     try:

@@ -18,6 +18,35 @@ from rich.panel import Panel
 
 console = Console()
 
+_ipv4_prioritized: bool = False
+
+
+def enable_ipv4_priority() -> None:
+    """
+    Patch socket.getaddrinfo to prioritize IPv4 (AF_INET) over IPv6 (AF_INET6).
+    On Windows networks where IPv6 is enabled on the adapter but broken/unrouted
+    to Google (common with many ISPs/routers), Python will otherwise wait 20-80s
+    per connection trying non-routable IPv6 addresses before falling back to IPv4.
+    Prioritizing IPv4 reduces connection latency from 80s to ~0.15s.
+    """
+    global _ipv4_prioritized
+    if _ipv4_prioritized:
+        return
+    _ipv4_prioritized = True
+    _orig_getaddrinfo = socket.getaddrinfo
+
+    def _getaddrinfo_ipv4_first(*args, **kwargs):
+        res = _orig_getaddrinfo(*args, **kwargs)
+        v4 = [r for r in res if r[0] == socket.AF_INET]
+        v6 = [r for r in res if r[0] == socket.AF_INET6]
+        return (v4 + v6) if v4 else res
+
+    socket.getaddrinfo = _getaddrinfo_ipv4_first
+
+
+# Auto-apply immediately when module is imported
+enable_ipv4_priority()
+
 
 def is_internet_available(timeout: float = 4.0) -> bool:
     """Check if internet is reachable by querying reliable DNS servers and HTTPS endpoints."""
