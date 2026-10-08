@@ -46,6 +46,9 @@ def is_network_error(exc: Exception) -> bool:
     """Check if an exception was caused by lost internet / DNS failure."""
     if exc is None:
         return False
+    # If internet is currently reachable, the error is an API service timeout, NOT an internet loss
+    if is_internet_available(timeout=1.5):
+        return False
     err_str = str(exc).lower()
     network_keywords = [
         "temporary failure in name resolution",
@@ -70,8 +73,6 @@ def is_network_error(exc: Exception) -> bool:
         "errno 110",
         "errno 111",
         "errno 113",
-        "timed out",
-        "timeout",
     ]
     return any(k in err_str for k in network_keywords)
 

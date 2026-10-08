@@ -53,6 +53,8 @@ MODEL_CASCADE = [
 _current_idx: int = 0  # Round-robin key pointer
 _quota_exhausted_map: dict[tuple[int, str], float] = {}  # (key_idx, model) -> timestamp of 429 error
 QUOTA_COOLDOWN_SECONDS: float = 1800.0  # 30-minute cooldown for 429'd model/key pairs
+_high_demand_model_map: dict[str, float] = {}  # model -> timestamp of 503/504 high demand error
+HIGH_DEMAND_COOLDOWN_SECONDS: float = 600.0  # 10-minute cooldown for models experiencing cloud outages/503
 
 
 def _get_keys() -> list[str]:
@@ -150,6 +152,11 @@ def generate_with_rotation(
     for m_idx, current_model in enumerate(models_to_try):
         next_model = models_to_try[m_idx + 1] if m_idx + 1 < len(models_to_try) else None
 
+        # Check if model is experiencing cloud outage / 503 high demand cooldown
+        last_high_demand = _high_demand_model_map.get(current_model, 0)
+        if now - last_high_demand < HIGH_DEMAND_COOLDOWN_SECONDS:
+            continue
+
         # Check if all keys are known to be quota-exhausted for this model within cooldown
         all_keys_in_cooldown = all(
             now - _quota_exhausted_map.get((k_idx, current_model), 0) < QUOTA_COOLDOWN_SECONDS
@@ -179,41 +186,43 @@ def generate_with_rotation(
                 return resp.text
             except Exception as e:
                 err = str(e)
-                from utils.network import is_network_error, wait_for_network_recovery
-                if is_network_error(e):
+                if _is_high_demand_error(e):
+                    _high_demand_model_map[current_model] = time.time()
                     console.print(
-                        f"[yellow]⚠ Internet connection lost during Gemini call ({key_label}). "
-                        f"Waiting for Wi-Fi recovery (Checking every 30s, max 10 mins)...[/yellow]"
+                        f"[yellow]⚠ Gemini {key_label} hit high demand/timeout (503/504) for '{current_model}'. "
+                        f"Cascading immediately to next model...[/yellow]"
                     )
-                    if wait_for_network_recovery(max_wait_seconds=600, check_interval_seconds=30):
-                        try:
-                            resp = client.models.generate_content(**kwargs)
-                            _current_idx = (idx + 1) % num_keys
-                            return resp.text
-                        except Exception:
-                            pass
+                    break  # High demand/timeout is a model-level capacity issue on Google's end; cascade immediately!
                 elif _is_quota_exhausted_error(e):
                     _quota_exhausted_map[(idx, current_model)] = time.time()
                     console.print(
                         f"[yellow]⚠ Gemini {key_label} limit exhausted (429/quota) for '{current_model}'. "
                         f"Trying next key...[/yellow]"
                     )
-                elif _is_high_demand_error(e):
-                    console.print(
-                        f"[yellow]⚠ Gemini {key_label} hit high demand/timeout (503/504) for '{current_model}'. "
-                        f"Cascading immediately to next model...[/yellow]"
-                    )
-                    break  # High demand/timeout is a model-level capacity issue on Google's end; cascade immediately!
                 elif "404" in err or "not found" in err.lower():
                     console.print(
                         f"[dim]Model '{current_model}' not found on {key_label}. Skipping model...[/dim]"
                     )
                     break  # Skip this model across all keys if not found
                 else:
-                    console.print(
-                        f"[yellow]⚠ Gemini {key_label} failed on '{current_model}': {err[:140]}. Trying next key...[/yellow]"
-                    )
-                    time.sleep(0.5)
+                    from utils.network import is_network_error, wait_for_network_recovery
+                    if is_network_error(e):
+                        console.print(
+                            f"[yellow]⚠ Internet connection lost during Gemini call ({key_label}). "
+                            f"Waiting for Wi-Fi recovery (Checking every 30s, max 10 mins)...[/yellow]"
+                        )
+                        if wait_for_network_recovery(max_wait_seconds=600, check_interval_seconds=30):
+                            try:
+                                resp = client.models.generate_content(**kwargs)
+                                _current_idx = (idx + 1) % num_keys
+                                return resp.text
+                            except Exception:
+                                pass
+                    else:
+                        console.print(
+                            f"[yellow]⚠ Gemini {key_label} failed on '{current_model}': {err[:140]}. Trying next key...[/yellow]"
+                        )
+                        time.sleep(0.5)
 
         if next_model:
             console.print(

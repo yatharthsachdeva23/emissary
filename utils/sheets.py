@@ -647,6 +647,12 @@ class SheetsClient:
         if not self.available:
             return []
         try:
+            # Fast check: check column J (Your Feedback) directly. Takes 0.3s instead of minutes!
+            col_feedback = self._sheet.col_values(COL_FEEDBACK + 1)
+            has_any_feedback = any(f.strip() for f in col_feedback[1:]) if len(col_feedback) > 1 else False
+            if not has_any_feedback:
+                return []
+
             all_rows = self._sheet.get_all_records()
             pending = []
             for i, row in enumerate(all_rows, start=2):
