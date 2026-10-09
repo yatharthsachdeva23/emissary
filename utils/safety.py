@@ -207,8 +207,10 @@ def close_active_message_boxes(page) -> bool:
     """
     Detects and closes any active or lingering LinkedIn message boxes/overlays:
     - Open conversation bubbles (.msg-overlay-conversation-bubble, .msg-convo-wrapper)
-    - Expanded messaging tray (.msg-overlay-list-bubble--is-expanded)
-    Ensures that profile buttons (Connect, More, Dropdowns) are completely visible,
+    - Open chat headers or overlays (aside.msg-overlay-container)
+    - Expanded messaging tray (.msg-overlay-list-bubble)
+    - InMail or direct message compose modals
+    Ensures profile buttons (Connect, More, Dropdowns) are completely visible,
     unobstructed, and interactive.
     Returns True if an active box was detected and closed.
     """
@@ -217,18 +219,38 @@ def close_active_message_boxes(page) -> bool:
 
     closed_any = False
     try:
-        # 1. Quick check: Is there any conversation bubble or expanded messaging tray present?
+        # 1. Comprehensive check: Is any conversation bubble, chat header, or expanded messaging tray present?
         has_active_overlay = page.evaluate("""
             () => {
+                // Check for conversation bubbles or open chat windows
                 const bubbles = Array.from(document.querySelectorAll(
-                    '.msg-overlay-conversation-bubble, .msg-convo-wrapper, [data-view-name="message-overlay"], aside.msg-overlay-container .msg-overlay-conversation-bubble'
+                    '.msg-overlay-conversation-bubble, .msg-convo-wrapper, [data-view-name="message-overlay"], ' +
+                    'aside.msg-overlay-container .msg-overlay-conversation-bubble, div[data-control-name="overlay.conversation"], ' +
+                    '.msg-thread, .msg-overlay-bubble-header, aside.msg-overlay-container div[role="dialog"]'
                 ));
                 const isAnyBubbleVisible = bubbles.some(b => {
                     const r = b.getBoundingClientRect();
-                    return r.width > 20 && r.height > 20;
+                    return r.width > 20 && r.height > 20 && r.top < window.innerHeight;
                 });
-                const expandedList = document.querySelector('.msg-overlay-list-bubble--is-expanded');
-                return isAnyBubbleVisible || !!expandedList;
+
+                // Check for expanded messaging list tray (not minimized)
+                const listBubble = document.querySelector('.msg-overlay-list-bubble');
+                const isListExpanded = listBubble && (
+                    listBubble.classList.contains('msg-overlay-list-bubble--is-expanded') ||
+                    (!listBubble.classList.contains('msg-overlay-list-bubble--is-minimized') && listBubble.getBoundingClientRect().height > 80)
+                );
+
+                // Check for any modal dialogs containing message form
+                const msgModals = Array.from(document.querySelectorAll(
+                    '.msg-compose-modal, div[role="dialog"]:has(textarea[name="message"]), div[role="dialog"]:has(.msg-form), ' +
+                    '.artdeco-modal:has(textarea[name="message"])'
+                ));
+                const isModalVisible = msgModals.some(m => {
+                    const r = m.getBoundingClientRect();
+                    return r.width > 50 && r.height > 50;
+                });
+
+                return isAnyBubbleVisible || isListExpanded || isModalVisible;
             }
         """)
 
@@ -245,11 +267,13 @@ def close_active_message_boxes(page) -> bool:
             "button[aria-label*='Close your conversation' i]",
             "button[aria-label*='Close conversation' i]",
             "button[aria-label*='Close chat' i]",
+            "button[aria-label*='Dismiss' i]",
             "button[data-view-name='chat-close']",
             ".msg-overlay-conversation-bubble header button:has(svg[data-test-icon*='close'])",
             ".msg-overlay-conversation-bubble header button:has(li-icon[type*='cancel'])",
             ".msg-overlay-conversation-bubble header button:has(li-icon[type*='close'])",
             ".msg-overlay-bubble-header__control--close",
+            "button.artdeco-modal__dismiss",
         ]
 
         for sel in close_selectors:
@@ -260,25 +284,27 @@ def close_active_message_boxes(page) -> bool:
                         if btn.is_visible(timeout=300):
                             btn.click(force=True, timeout=600)
                             closed_any = True
-                            page.wait_for_timeout(250)
+                            page.wait_for_timeout(200)
                     except Exception:
                         pass
             except Exception:
                 pass
 
-        # 3. Comprehensive JavaScript dismissal & event dispatch (handles dynamic React synthetic events)
+        # 3. Comprehensive JavaScript dismissal & event dispatch
         js_closed = page.evaluate("""
             () => {
                 let count = 0;
-                // Target all close / dismiss buttons in conversation bubbles
+                // Target all close / dismiss buttons in conversation bubbles and overlays
                 const buttons = document.querySelectorAll(
                     '.msg-overlay-conversation-bubble button[data-control-name="overlay.close_conversation_window"], ' +
                     '.msg-overlay-conversation-bubble button.msg-overlay-bubble-header__control--close, ' +
                     '.msg-overlay-conversation-bubble button.msg-overlay-conversation-bubble__button-close, ' +
                     '.msg-overlay-conversation-bubble button[aria-label*="Close" i], ' +
+                    '.msg-overlay-conversation-bubble button[aria-label*="Dismiss" i], ' +
                     '.msg-overlay-conversation-bubble button[data-view-name="chat-close"], ' +
                     '.msg-overlay-bubble-header__control--close, ' +
-                    '.msg-overlay-conversation-bubble header button:last-child'
+                    '.msg-overlay-conversation-bubble header button:last-child, ' +
+                    'aside.msg-overlay-container button[aria-label*="Close" i]'
                 );
                 buttons.forEach(b => {
                     try {
@@ -290,16 +316,16 @@ def close_active_message_boxes(page) -> bool:
                     } catch(e) {}
                 });
 
-                // Also check for the expanded list bubble (minimize it)
-                const expandedList = document.querySelector('.msg-overlay-list-bubble--is-expanded');
-                if (expandedList) {
-                    const collapseBtn = expandedList.querySelector(
+                // Check for expanded list bubble and collapse/minimize it
+                const listBubble = document.querySelector('.msg-overlay-list-bubble');
+                if (listBubble && !listBubble.classList.contains('msg-overlay-list-bubble--is-minimized')) {
+                    const collapseBtn = listBubble.querySelector(
                         'button[data-control-name="overlay.collapse_list_window"], ' +
                         'button[aria-label*="Collapse" i], button[aria-label*="Minimize" i], ' +
                         '.msg-overlay-bubble-header'
                     );
                     if (collapseBtn) {
-                        collapseBtn.click();
+                        try { collapseBtn.click(); } catch(e) {}
                         count++;
                     }
                 }
@@ -311,36 +337,33 @@ def close_active_message_boxes(page) -> bool:
             closed_any = True
             page.wait_for_timeout(300)
 
-        # 4. Fail-safe: Check if any conversation bubbles are still stubbornly visible in DOM
+        # 4. Press Escape to dismiss any popups/modals
+        try:
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(200)
+        except Exception:
+            pass
+
+        # 5. Fail-safe: Hide any remaining conversation bubbles
         still_visible = page.evaluate("""
             () => {
                 const remaining = Array.from(document.querySelectorAll(
-                    '.msg-overlay-conversation-bubble, .msg-convo-wrapper, [data-view-name="message-overlay"]'
+                    '.msg-overlay-conversation-bubble, .msg-convo-wrapper, [data-view-name="message-overlay"], aside.msg-overlay-container .msg-overlay-conversation-bubble'
                 ));
-                return remaining.filter(b => {
+                let count = 0;
+                remaining.forEach(b => {
                     const r = b.getBoundingClientRect();
-                    return r.width > 20 && r.height > 20;
-                }).length;
-            }
-        """)
-
-        if still_visible > 0:
-            try:
-                page.keyboard.press("Escape")
-                page.wait_for_timeout(300)
-            except Exception:
-                pass
-
-            # Ultimate safety net: Hide or remove them so they cannot intercept clicks or block connect
-            page.evaluate("""
-                () => {
-                    document.querySelectorAll('.msg-overlay-conversation-bubble, .msg-convo-wrapper, [data-view-name="message-overlay"]').forEach(b => {
+                    if (r.width > 20 && r.height > 20) {
                         b.style.display = 'none';
                         b.setAttribute('aria-hidden', 'true');
                         b.setAttribute('data-antigravity-suppressed', 'true');
-                    });
-                }
-            """)
+                        count++;
+                    }
+                });
+                return count;
+            }
+        """)
+        if still_visible > 0:
             closed_any = True
 
         if closed_any:
@@ -350,4 +373,5 @@ def close_active_message_boxes(page) -> bool:
     except Exception as e:
         console.print(f"  [dim]  Note on closing message box: {e}[/dim]")
         return False
+
 

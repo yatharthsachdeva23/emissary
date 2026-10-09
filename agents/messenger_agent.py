@@ -311,10 +311,12 @@ class MessengerAgent:
 
                 # Human-like scrolling to trigger loading of lazy widgets (like Experience & Connections)
                 try:
-                    # 1. Focus page
-                    page.mouse.move(640, 400)
-                    page.mouse.click(640, 400)
-                    human_sleep(0.4, 0.8)
+                    # Dismiss any message box that popped up on page load
+                    self._close_active_message_boxes(page)
+
+                    # 1. Safely focus page window without blind coordinate clicks (avoids clicking Message button)
+                    page.evaluate("window.focus()")
+                    human_sleep(0.3, 0.6)
 
                     # 2. Scroll down by 650-950px
                     scroll_dist = random.randint(650, 950)
@@ -326,6 +328,9 @@ class MessengerAgent:
                     page.mouse.wheel(0, -scroll_dist)
                     page.evaluate("window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0;")
                     human_sleep(1.0, 1.8)
+
+                    # Close any message box that opened during scroll
+                    self._close_active_message_boxes(page)
                 except Exception:
                     pass
 
@@ -688,6 +693,52 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
         """Helper to detect and close any active LinkedIn message boxes or overlays."""
         return close_active_message_boxes(page)
 
+    def _is_already_connected(self, page) -> bool:
+        """Check if the current profile is already a 1st-degree connection."""
+        try:
+            is_1st = page.evaluate("""
+                () => {
+                    // 1. Check distance badges near name (e.g. '1st', '• 1st', '1st degree connection')
+                    const badges = Array.from(document.querySelectorAll(
+                        '.dist-value, .distance-badge, [aria-label*="1st degree connection" i], ' +
+                        '.pv-top-card--list .dist-value, h1 ~ span, .pv-text-details__separator ~ span'
+                    ));
+                    for (const b of badges) {
+                        const txt = (b.innerText || b.textContent || '').trim();
+                        const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+                        if (txt === '1st' || txt === '• 1st' || aria.includes('1st degree connection')) {
+                            const r = b.getBoundingClientRect();
+                            if (r.top >= 0 && r.top < 600) {
+                                return true;
+                            }
+                        }
+                    }
+
+                    // 2. Check top card buttons: has primary 'Message' button AND no 'Connect' button
+                    const topButtons = Array.from(document.querySelectorAll(
+                        '.scaffold-layout__main-column button, .pv-top-card button, main section:first-of-type button'
+                    ));
+                    const hasConnect = topButtons.some(btn => {
+                        const t = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+                        return t === 'connect' || t.includes('connect with');
+                    });
+                    const hasPending = topButtons.some(btn => {
+                        const t = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+                        return t === 'pending';
+                    });
+                    const hasMessage = topButtons.some(btn => {
+                        const t = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+                        const r = btn.getBoundingClientRect();
+                        return t === 'message' && r.top >= 200 && r.top <= 650;
+                    });
+
+                    return hasMessage && !hasConnect && !hasPending;
+                }
+            """)
+            return bool(is_1st)
+        except Exception:
+            return False
+
     def _send_connection(self, page, lead: dict, ghost_run: bool = False) -> tuple[bool, str]:
         """
         Find and click the Connect button, handle the modal, and 'send'.
@@ -697,6 +748,12 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
 
         # ── Start of connection request flow: Check and close any active message box first ──
         self._close_active_message_boxes(page)
+
+        # Check if already a 1st degree connection
+        if self._is_already_connected(page):
+            console.print(f"  [green]  ✓ {name} is already a 1st-degree connection. Skipping connection request.[/green]")
+            self._close_active_message_boxes(page)
+            return False, "already_connected"
 
         for attempt in (1, 2):
             try:
@@ -711,6 +768,11 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                 self._close_active_message_boxes(page)
 
                 # --- 1. CHECK FOR ACTUAL RESTRICTIONS / PENDING STATES ---
+                if self._is_already_connected(page):
+                    console.print(f"  [green]  ✓ {name} is already a 1st-degree connection. Skipping connection request.[/green]")
+                    self._close_active_message_boxes(page)
+                    return False, "already_connected"
+
                 if page.locator("button:has-text('Pending')").first.is_visible(timeout=1500):
                     console.print(f"  [yellow]  ⚠ Invite already pending for {name}. Skipping.[/yellow]")
                     return False, "already_pending"
@@ -1416,7 +1478,7 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                             self.results.append(lead)
                             self._save_checkpoint(leads)
                         else:
-                            if not is_retry and status not in ("already_pending", "modal_name_mismatch", "weekly_limit_reached", "email_required"):
+                            if not is_retry and status not in ("already_pending", "modal_name_mismatch", "weekly_limit_reached", "email_required", "already_connected"):
                                 console.print(f"  [yellow]  ⚠ Connection attempt failed for {name} ({status}). Scheduling retry...[/yellow]")
                                 lead["status"] = "retry"
                                 self.retry_queue.append(lead)
@@ -1428,19 +1490,17 @@ Return ONLY a valid JSON object wrapped in ```json ... ``` tags:
                             else:
                                 self.skipped_count += 1
                                 lead["status"] = status
-                                console.print(f"  [yellow]  ⚠ Skipped: {status}[/yellow]")
+                                display_status = "Already Connected" if status == "already_connected" else status
+                                console.print(f"  [yellow]  ⚠ Skipped: {display_status}[/yellow]")
                                 self.results.append(lead)
                                 try:
+                                    sheet_status = "Already Connected" if status == "already_connected" else status
                                     if lead.get("linkedin_url"):
-                                        mark_contacted(lead.get("linkedin_url", ""), status)
+                                        mark_contacted(lead.get("linkedin_url", ""), sheet_status)
+                                    from utils.sheets import SheetsClient
+                                    SheetsClient().update_status(url, sheet_status)
                                 except Exception:
                                     pass
-                                if status in ("connect_button_missing", "click_failed"):
-                                    try:
-                                        from utils.sheets import SheetsClient
-                                        SheetsClient().update_status(url, "retry")
-                                    except Exception:
-                                        pass
                             self._save_checkpoint(leads)
 
                         # Mutual exclusion: batch sleep OR inter-connection sleep
